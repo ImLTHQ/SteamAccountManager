@@ -309,6 +309,7 @@ class AccountManagerApp:
         remarks_menu = tk.Menu(self.root, tearoff=0)
         remarks_menu.add_command(label="一级", command=lambda: self.set_remarks(account_obj, "一级"))
         remarks_menu.add_command(label="二级", command=lambda: self.set_remarks(account_obj, "二级"))
+        remarks_menu.add_command(label="十级", command=lambda: self.set_remarks(account_obj, "十级"))
         remarks_menu.add_command(label="清空", command=lambda: self.set_remarks(account_obj, ""))
         try:
             remarks_menu.tk_popup(event.x_root, event.y_root)
