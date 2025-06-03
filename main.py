@@ -513,9 +513,14 @@ class AccountManagerApp:
                 for line in f:
                     line = line.strip()
                     if "----" in line:
-                        account, password = line.split("----", 1)
-                        if self._add_new_account_entry(account.strip(), password.strip()):
-                            new_accounts_count += 1
+                        parts = line.split("----")
+                        if len(parts) >= 2:
+                            account = parts[0].strip()
+                            password = parts[1].strip()
+                            # 忽略 parts[2] 及以后
+                            if account and password:
+                                if self._add_new_account_entry(account, password):
+                                    new_accounts_count += 1
 
             if new_accounts_count > 0:
                 messagebox.showinfo("导入成功", f"成功导入 {new_accounts_count} 个新账号。", parent=self.root)
@@ -699,13 +704,12 @@ class ManualAddAccountDialog:
         for line in lines:
             line = line.strip()
             if "----" in line:
-                try:
-                    account, password = line.split("----", 1)
-                    if account.strip() and password.strip():
-                        self.new_accounts_data.append((account.strip(), password.strip()))
-                except ValueError:
-                    # Silently skip malformed lines, or add an error message if desired
-                    pass
+                parts = line.split("----")
+                if len(parts) >= 2:
+                    account = parts[0].strip()
+                    password = parts[1].strip()
+                    if account and password:
+                        self.new_accounts_data.append((account, password))
         self.top.destroy()
 
 if __name__ == "__main__":
