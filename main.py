@@ -2,24 +2,29 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
-import uuid
+# import uuid # No longer needed
 
 class AccountManagerApp:
     # Class-level constants for UI configuration
-    COLUMNS = ("select", "account", "password", "status", "available_time", "remarks", "shortcut")
+    COLUMNS = ("select", "account", "password", "status", "available_time", "remarks", "shortcut") # Re-added "shortcut"
     HEADINGS_MAP = {
         "select": "选择", "account": "账号", "password": "密码",
         "status": "状态", "available_time": "可用时间", "remarks": "备注",
-        "shortcut": "快捷"
+        "shortcut": "快捷" # Re-added "shortcut" heading
     }
     COLUMN_WIDTHS = {
         "select": 50, "account": 150, "password": 150, "status": 80,
-        "available_time": 160, "remarks": 100, "shortcut": 100 # Increased width for time display
+        "available_time": 160, "remarks": 100, "shortcut": 100 # Re-added "shortcut" width
     }
     COLUMN_ANCHORS = {
         "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
-        "remarks": tk.CENTER, "shortcut": tk.CENTER
+        "remarks": tk.CENTER, "shortcut": tk.CENTER # Re-added "shortcut" anchor
     }
+
+    # Mapping for remarks for JSON serialization (status mapping is no longer needed for saving)
+    REMARKS_TO_JSON = {"": 0, "空白": 0, "一级": 1, "二级": 2, "十级": 3}
+    REMARKS_FROM_JSON = {0: "", 1: "一级", 2: "二级", 3: "十级"}
+    # STATUS_TO_JSON and STATUS_FROM_JSON are no longer needed for saving/loading 'status' directly
 
     def __init__(self, root_window):
         self.root = root_window
@@ -244,11 +249,14 @@ class AccountManagerApp:
         if not account_obj: return
         
         if column_header_text == "备注":
-            current_remarks = account_obj.get('remarks', '')
-            new_remarks = simpledialog.askstring("编辑备注", "请输入新备注:", initialvalue=current_remarks, parent=self.root)
-            if new_remarks is not None:
-                self.set_remarks(account_obj, new_remarks)
-        elif column_header_text == "快捷":
+            # Convert internal remarks string to display for input
+            current_remarks_display = account_obj.get('remarks', '')
+            new_remarks_display = simpledialog.askstring("编辑备注", "请输入新备注:", initialvalue=current_remarks_display, parent=self.root)
+            if new_remarks_display is not None:
+                # Convert input display string back to internal string format (e.g., "一级")
+                # Then set remarks, which will handle the conversion to numerical for saving
+                self.set_remarks(account_obj, new_remarks_display)
+        elif column_header_text == "快捷": # Now identified by header text
             self.apply_shortcut(account_obj, "reset")
 
     def on_tree_right_click(self, event):
@@ -275,7 +283,7 @@ class AccountManagerApp:
 
         if column_header_text == "备注":
             self._show_remarks_menu(event, account_obj)
-        elif column_header_text == "快捷":
+        elif column_header_text == "快捷": # Now identified by header text
             self._show_shortcut_menu(event, account_obj)
         elif column_header_text == "账号":
             self.root.clipboard_clear()
@@ -315,12 +323,14 @@ class AccountManagerApp:
             remarks_menu.grab_release()
 
     def set_remarks(self, account_obj, remark_text):
-        """Sets the remarks for an account and updates the Treeview."""
-        account_obj['remarks'] = remark_text
+        """Sets the remarks for an account and updates the Treeview.
+        Converts human-readable remark_text to a numerical representation."""
+        account_obj['remarks'] = remark_text # Store as string for internal logic/display
         self.filter_treeview() # Re-filter and re-populate to reflect remarks change
 
     def _update_account_status_and_time(self, account_obj, new_available_time_dt=None):
-        """Updates an account's status and available time."""
+        """Updates an account's status and available time.
+        Status is *derived* from available_time, not stored independently."""
         if new_available_time_dt is None:
             try:
                 available_dt = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
@@ -330,6 +340,7 @@ class AccountManagerApp:
             available_dt = new_available_time_dt
 
         account_obj['available_time'] = available_dt.strftime("%Y-%m-%d %H:%M")
+        # Dynamically set status based on available_time
         account_obj['status'] = "可用" if available_dt <= datetime.datetime.now() else "不可用"
 
     def apply_shortcut(self, account_obj, action_type, hours=0, days=0):
@@ -346,9 +357,10 @@ class AccountManagerApp:
             self._update_account_status_and_time(account_obj, new_available_time_dt)
             
             # Move the account to the top of the accounts_data list
+            # Find index by account and password as id is removed
             original_index = -1
             for i, acc in enumerate(self.accounts_data):
-                if acc['id'] == account_obj['id']:
+                if acc['account'] == account_obj['account'] and acc['password'] == account_obj['password']:
                     original_index = i
                     break
             
@@ -363,6 +375,8 @@ class AccountManagerApp:
             The selection highlight is handled by the Treeview itself."""
         select_char = "☑" if account_obj.get('selected_state', False) else "☐"
         
+        # Status is *derived* from account_obj['available_time']
+        self._update_account_status_and_time(account_obj) 
         status_tag = account_obj['status']
         
         account_obj.setdefault('remarks', '')
@@ -392,20 +406,15 @@ class AccountManagerApp:
             select_char,
             account_obj['account'],
             account_obj['password'],
-            account_obj['status'],
+            account_obj['status'], # Display the derived status
             account_obj['available_time'],
             account_obj['remarks'],
-            display_shortcut # Use the calculated display_shortcut
+            display_shortcut # This is now included in the values tuple
         ), tags=(status_tag,))
 
 
     def populate_treeview(self, data_to_display=None):
         """Populates the Treeview with account data."""
-        # Saving current selections for reapplication is more complex with dynamic content.
-        # For simplicity in this example, we'll clear and repopulate without re-selecting.
-        # If preserving selections is critical, you'd need to store the unique IDs
-        # of selected accounts and re-select them by ID after repopulating.
-        
         for item in self.tree.get_children():
             self.tree.delete(item)
 
@@ -446,10 +455,10 @@ class AccountManagerApp:
                 select_char,
                 acc_data['account'],
                 acc_data['password'],
-                acc_data['status'],
+                acc_data['status'], # Display the derived status
                 acc_data['available_time'],
                 acc_data['remarks'],
-                display_shortcut # Use the calculated display_shortcut
+                display_shortcut # This value is now displayed in the 6th column (index 5)
             ), tags=(status_tag,))
             acc_data['tree_id'] = tree_item_id
 
@@ -474,14 +483,16 @@ class AccountManagerApp:
 
     def _add_new_account_entry(self, account, password):
         """Helper to add a new account entry if it's not a duplicate."""
-        if not any(acc['account'] == account for acc in self.accounts_data):
+        # Check for duplicate using account and password
+        if not any(acc['account'] == account and acc['password'] == password for acc in self.accounts_data):
             default_available_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             new_acc = {
-                'id': str(uuid.uuid4()), 'selected_state': False,
-                'account': account, 'password': password, 'status': "可用",
+                'account': account, 
+                'password': password, 
+                # 'status': "可用", # Status is derived, not stored explicitly
                 'available_time': default_available_time,
-                'shortcut': None, # Default to None (blank display) for shortcut
-                'remarks': ''
+                'remarks': '', # Stored internally as string
+                'selected_state': False # Runtime only
             }
             self.accounts_data.append(new_acc)
             return True
@@ -537,6 +548,14 @@ class AccountManagerApp:
         for acc in self.accounts_data:
             acc_copy = acc.copy()
             acc_copy.pop('tree_id', None) # Remove temporary tree_id before saving
+            acc_copy.pop('selected_state', None) # Removed selected_state before saving
+
+            # Remove 'status' as it's derived
+            acc_copy.pop('status', None) 
+
+            # Convert remarks to numerical format for JSON
+            acc_copy['remarks'] = self.REMARKS_TO_JSON.get(acc_copy['remarks'], 0) # Default to 0 (空白)
+
             data_to_save.append(acc_copy)
         try:
             with open(self.data_file, 'w', encoding='utf-8') as f:
@@ -552,15 +571,21 @@ class AccountManagerApp:
                 loaded_entries = json.load(f)
                 self.accounts_data = []
                 for entry in loaded_entries:
-                    entry.setdefault('id', str(uuid.uuid4()))
-                    entry.setdefault('selected_state', False)
-                    entry.setdefault('status', '可用')
+                    entry.setdefault('selected_state', False) # Always False on load
                     entry.setdefault('available_time', datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-                    entry.setdefault('shortcut', None) # Set default shortcut to None for blank display
-                    entry.setdefault('remarks', '')
+                    
+                    # 'status' is no longer loaded, but calculated in _update_account_status_and_time
+                    # Convert remarks from numerical to string format
+                    entry['remarks'] = self.REMARKS_FROM_JSON.get(entry.get('remarks', 0), '') # Default to '' (空白)
+
                     # Remove old/deprecated keys if they exist
+                    entry.pop('id', None) # Remove if exists from old data
+                    entry.pop('shortcut', None) # Ensure 'shortcut' is not loaded from old data
                     entry.pop('delay_days', None)
                     entry.pop('delay_hours', None)
+                    # Importantly, remove 'status' from loaded data if it was previously saved
+                    entry.pop('status', None) 
+
                     self.accounts_data.append(entry)
         except FileNotFoundError:
             self.accounts_data = []
@@ -592,20 +617,21 @@ class AccountManagerApp:
 
     def delete_selected(self):
         """Deletes all currently selected accounts."""
-        selected_accounts_to_delete_ids = {
-            acc['id'] for acc in self.accounts_data if acc.get('selected_state', False)
-        }
-        if not selected_accounts_to_delete_ids:
+        selected_accounts_to_delete = [
+            (acc['account'], acc['password']) for acc in self.accounts_data if acc.get('selected_state', False)
+        ]
+        if not selected_accounts_to_delete:
             messagebox.showinfo("删除选中", "没有选中的账号可删除。", parent=self.root)
             return
 
-        if messagebox.askyesno("确认删除", f"确定要删除选中的 {len(selected_accounts_to_delete_ids)} 个账号吗?", parent=self.root):
-            # Efficiently filter out deleted accounts
+        if messagebox.askyesno("确认删除", f"确定要删除选中的 {len(selected_accounts_to_delete)} 个账号吗?", parent=self.root):
+            # Efficiently filter out deleted accounts based on account and password
             self.accounts_data = [
-                acc for acc in self.accounts_data if acc['id'] not in selected_accounts_to_delete_ids
+                acc for acc in self.accounts_data 
+                if (acc['account'], acc['password']) not in selected_accounts_to_delete
             ]
             self.filter_treeview()
-            messagebox.showinfo("删除成功", f"{len(selected_accounts_to_delete_ids)} 个账号已删除。", parent=self.root)
+            messagebox.showinfo("删除成功", f"{len(selected_accounts_to_delete)} 个账号已删除。", parent=self.root)
 
     def export_txt(self):
         """Exports all account data to a TXT file."""
@@ -654,40 +680,32 @@ class ManualAddAccountDialog:
         ttk.Label(self.top, text="请输入账号信息，每行一个账号，格式为：账号----密码", wraplength=430).pack(pady=(10,5))
         example_text = "例如:\nusername1----password1\nusername2----password2"
         ttk.Label(self.top, text=example_text, justify=tk.LEFT).pack(pady=5)
-
-        self.text_area_frame = ttk.Frame(self.top)
-        self.text_area_frame.pack(pady=10, padx=10, expand=True, fill=tk.BOTH)
-        self.text_area = tk.Text(self.text_area_frame, height=10, width=50)
         
-        text_scrollbar = ttk.Scrollbar(self.text_area_frame, orient=tk.VERTICAL, command=self.text_area.yview)
-        self.text_area.configure(yscrollcommand=text_scrollbar.set)
-        
-        self.text_area.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
-        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.text_area = tk.Text(self.top, height=10, width=50)
+        self.text_area.pack(pady=10, padx=10)
 
         button_frame = ttk.Frame(self.top)
-        button_frame.pack(pady=10)
-
-        ttk.Button(button_frame, text="添加", command=self.add_accounts).pack(side=tk.LEFT, padx=10)
-        ttk.Button(button_frame, text="取消", command=self.top.destroy).pack(side=tk.LEFT, padx=10)
+        button_frame.pack(pady=5)
+        ttk.Button(button_frame, text="添加", command=self._add_accounts).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="取消", command=self.top.destroy).pack(side=tk.LEFT, padx=5)
         
-        self.top.wait_window()
+        self.top.protocol("WM_DELETE_WINDOW", self.top.destroy) # Handle window close button
+        self.top.wait_window() # Wait until the dialog is closed
 
-    def add_accounts(self):
-        content = self.text_area.get("1.0", tk.END).strip()
-        lines = content.split("\n")
-        parsed_something = False
+    def _add_accounts(self):
+        input_text = self.text_area.get("1.0", tk.END).strip()
+        lines = input_text.split('\n')
+        
         for line in lines:
             line = line.strip()
             if "----" in line:
-                account, password = line.split("----", 1)
-                if account.strip() and password.strip():
-                    self.new_accounts_data.append((account.strip(), password.strip()))
-                    parsed_something = True
-        
-        if not parsed_something and content:
-            messagebox.showwarning("格式错误", "请输入正确格式的账号信息 (账号----密码)，且账号和密码不能为空。", parent=self.top)
-            self.new_accounts_data = [] # Clear any partially parsed data if format is wrong
+                try:
+                    account, password = line.split("----", 1)
+                    if account.strip() and password.strip():
+                        self.new_accounts_data.append((account.strip(), password.strip()))
+                except ValueError:
+                    # Silently skip malformed lines, or add an error message if desired
+                    pass
         self.top.destroy()
 
 if __name__ == "__main__":
