@@ -560,7 +560,7 @@ class AccountManagerApp:
         try:
             with open(self.data_file, 'w', encoding='utf-8') as f:
                 json.dump(data_to_save, f, ensure_ascii=False, indent=4)
-            messagebox.showinfo("保存成功", f"数据已保存到 {self.data_file}", parent=self.root)
+            # messagebox.showinfo("保存成功", f"数据已保存到 {self.data_file}", parent=self.root) # 删除成功弹窗
         except Exception as e:
             messagebox.showerror("保存失败", f"保存数据失败: {e}", parent=self.root)
 
