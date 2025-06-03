@@ -265,7 +265,6 @@ class AccountManagerApp:
 
         column_header_text = self.tree.heading(column_id_str)['text']
         
-        # *** MODIFICATION START ***
         # Remove automatic selection for "备注" and "快捷" right-clicks
         # The line below ensures that a right-click will select the row IF it's not remarks/shortcut,
         # or if Ctrl/Cmd is pressed (for multi-selection).
@@ -273,7 +272,6 @@ class AccountManagerApp:
             for acc in self.accounts_data: # Deselect others in data and UI
                 self._set_account_selection_state(acc, False)
             self._set_account_selection_state(account_obj, True) # Select clicked item in data and UI
-        # *** MODIFICATION END ***
 
         if column_header_text == "备注":
             self._show_remarks_menu(event, account_obj)
@@ -503,8 +501,8 @@ class AccountManagerApp:
             with open(filepath, 'r', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
-                    if "---" in line:
-                        account, password = line.split("---", 1)
+                    if "----" in line:
+                        account, password = line.split("----", 1)
                         if self._add_new_account_entry(account.strip(), password.strip()):
                             new_accounts_count += 1
 
@@ -572,8 +570,9 @@ class AccountManagerApp:
         self.filter_treeview() # Populate treeview after loading
 
     def refresh_treeview(self):
-        """Refreshes the Treeview display."""
-        self.filter_treeview()
+        """Refreshes the Treeview display by reloading data from the JSON file."""
+        self.load_data() # Reload data from the JSON file
+        self.filter_treeview() # Then filter and display the reloaded data
 
     def select_all_toggle(self):
         """Toggles selection for all visible accounts."""
@@ -628,7 +627,7 @@ class AccountManagerApp:
                 for acc in self.accounts_data:
                     account = str(acc.get('account', ''))
                     password = str(acc.get('password', ''))
-                    f.write(f"{account}---{password}\n")
+                    f.write(f"{account}----{password}\n")
             messagebox.showinfo("导出成功", f"账号和密码已成功导出到:\n{filepath}", parent=self.root)
         except Exception as e:
             messagebox.showerror("导出失败", f"导出文件失败: {e}", parent=self.root)
@@ -652,8 +651,8 @@ class ManualAddAccountDialog:
 
         self.new_accounts_data = []
 
-        ttk.Label(self.top, text="请输入账号信息，每行一个账号，格式为：账号---密码", wraplength=430).pack(pady=(10,5))
-        example_text = "例如:\nusername1---password1\nusername2---password2"
+        ttk.Label(self.top, text="请输入账号信息，每行一个账号，格式为：账号----密码", wraplength=430).pack(pady=(10,5))
+        example_text = "例如:\nusername1----password1\nusername2----password2"
         ttk.Label(self.top, text=example_text, justify=tk.LEFT).pack(pady=5)
 
         self.text_area_frame = ttk.Frame(self.top)
@@ -680,19 +679,18 @@ class ManualAddAccountDialog:
         parsed_something = False
         for line in lines:
             line = line.strip()
-            if "---" in line:
-                account, password = line.split("---", 1)
+            if "----" in line:
+                account, password = line.split("----", 1)
                 if account.strip() and password.strip():
                     self.new_accounts_data.append((account.strip(), password.strip()))
                     parsed_something = True
         
         if not parsed_something and content:
-            messagebox.showwarning("格式错误", "请输入正确格式的账号信息 (账号---密码)，且账号和密码不能为空。", parent=self.top)
+            messagebox.showwarning("格式错误", "请输入正确格式的账号信息 (账号----密码)，且账号和密码不能为空。", parent=self.top)
             self.new_accounts_data = [] # Clear any partially parsed data if format is wrong
-            return
         self.top.destroy()
 
-if __name__ == '__main__':
-    main_root = tk.Tk()
-    app = AccountManagerApp(main_root)
-    main_root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AccountManagerApp(root)
+    root.mainloop()
