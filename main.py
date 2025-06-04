@@ -39,6 +39,8 @@ class AccountManagerApp:
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
 
+        self.remarks_sort_reverse = False  # 新增：备注排序方向
+
         self.setup_ui() # This method now creates self.tree
         self._configure_treeview_style() # Now self.tree exists
 
@@ -90,6 +92,8 @@ class AccountManagerApp:
         for col_id in self.COLUMNS:
             self.tree.heading(col_id, text=self.HEADINGS_MAP[col_id])
             self.tree.column(col_id, width=self.COLUMN_WIDTHS[col_id], anchor=self.COLUMN_ANCHORS.get(col_id, tk.W))
+        # 新增：为备注列绑定点击排序
+        self.tree.heading("remarks", text=self.HEADINGS_MAP["remarks"], command=self.sort_by_remarks)
 
         self.tree.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
@@ -480,6 +484,16 @@ class AccountManagerApp:
                 filtered_data.append(acc)
         self.populate_treeview(filtered_data)
 
+    def sort_by_remarks(self):
+        """点击备注列排序，升序/降序切换"""
+        self.remarks_sort_reverse = not getattr(self, "remarks_sort_reverse", False)
+        # 备注排序，空白最前，然后一级、二级、十级
+        remarks_order = {"": 0, "空白": 0, "一级": 1, "二级": 2, "十级": 3}
+        self.accounts_data.sort(
+            key=lambda acc: remarks_order.get(acc.get("remarks", ""), 0),
+            reverse=self.remarks_sort_reverse
+        )
+        self.filter_treeview()
 
     def _add_new_account_entry(self, account, password):
         """Helper to add a new account entry if it's not a duplicate."""
