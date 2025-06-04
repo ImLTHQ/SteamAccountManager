@@ -66,7 +66,7 @@ class AccountManagerApp:
         # Consolidated button creation
         buttons_data = [
             ("导入TXT", self.import_txt),
-            ("导出TXT", self.export_txt),
+            ("导出选中", self.export_txt),
             ("手动添加", self.manual_add_account_dialog),
             ("保存", self.save_data),
             ("刷新", self.refresh_treeview),
@@ -524,9 +524,11 @@ class AccountManagerApp:
 
             if new_accounts_count > 0:
                 messagebox.showinfo("导入成功", f"成功导入 {new_accounts_count} 个新账号。", parent=self.root)
+                self.filter_treeview()
+                self.save_data()  # 自动保存
             else:
                 messagebox.showinfo("导入提示", "没有新的账号被导入（可能已存在或文件格式不正确）。", parent=self.root)
-            self.filter_treeview()
+                self.filter_treeview()
         except Exception as e:
             messagebox.showerror("导入错误", f"导入文件失败: {e}", parent=self.root)
 
@@ -542,6 +544,7 @@ class AccountManagerApp:
 
             if new_accounts_count > 0:
                 messagebox.showinfo("添加成功", f"成功添加 {new_accounts_count} 个新账号。", parent=self.root)
+                self.save_data()  # 添加后自动保存
             elif dialog.new_accounts_data: # Only show if some input was provided but no new accounts added
                 messagebox.showinfo("添加提示", "没有新的账号被添加（可能已存在）。", parent=self.root)
             self.filter_treeview()
@@ -636,30 +639,32 @@ class AccountManagerApp:
                 if (acc['account'], acc['password']) not in selected_accounts_to_delete
             ]
             self.filter_treeview()
+            self.save_data()  # 自动保存
             messagebox.showinfo("删除成功", f"{len(selected_accounts_to_delete)} 个账号已删除。", parent=self.root)
 
     def export_txt(self):
-        """Exports all account data to a TXT file."""
-        if not self.accounts_data:
-            messagebox.showinfo("导出提示", "没有数据可导出。", parent=self.root)
+        """只导出选中的账号数据到TXT文件。"""
+        selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
+        if not selected_accounts:
+            messagebox.showinfo("导出提示", "没有选中的账号可导出。", parent=self.root)
             return
 
         filepath = filedialog.asksaveasfilename(
             defaultextension=".txt",
             filetypes=(("Text files", "*.txt"), ("All files", "*.*")),
-            title="导出账号密码到TXT文件",
+            title="导出选中账号密码到TXT文件",
             parent=self.root
         )
         
-        if not filepath: return # User cancelled
+        if not filepath: return # 用户取消
 
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
-                for acc in self.accounts_data:
+                for acc in selected_accounts:
                     account = str(acc.get('account', ''))
                     password = str(acc.get('password', ''))
                     f.write(f"{account}----{password}\n")
-            messagebox.showinfo("导出成功", f"账号和密码已成功导出到:\n{filepath}", parent=self.root)
+            messagebox.showinfo("导出成功", f"选中的账号和密码已成功导出到:\n{filepath}", parent=self.root)
         except Exception as e:
             messagebox.showerror("导出失败", f"导出文件失败: {e}", parent=self.root)
             
