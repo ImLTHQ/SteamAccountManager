@@ -61,6 +61,18 @@ class AccountManagerApp:
         ttk.Checkbutton(search_frame, text="只显示可用", variable=self.show_available_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         ttk.Button(search_frame, text="删除选中", command=self.delete_selected).pack(side=tk.RIGHT, padx=5)
         ttk.Button(search_frame, text="全选/取消全选", command=self.select_all_toggle).pack(side=tk.RIGHT, padx=5)
+
+        # 新增：批量备注下拉栏和按钮（默认隐藏）
+        self.batch_remarks_var = tk.StringVar()
+        self.batch_remarks_combo = ttk.Combobox(
+            search_frame, textvariable=self.batch_remarks_var, state="readonly", width=8
+        )
+        self.batch_remarks_combo['values'] = ("", "一级", "二级", "十级")
+        self.batch_remarks_combo.set("")
+        self.batch_remarks_btn = ttk.Button(search_frame, text="批量备注", command=self.batch_set_remarks)
+        # 默认不显示
+        self.batch_remarks_combo.pack_forget()
+        self.batch_remarks_btn.pack_forget()
         tree_frame = ttk.Frame(self.root, padding="10")
         tree_frame.pack(expand=True, fill=tk.BOTH)
         self.tree = ttk.Treeview(tree_frame, columns=self.COLUMNS, show="headings")
@@ -90,6 +102,8 @@ class AccountManagerApp:
                 else:
                     self.tree.selection_remove(account_obj['tree_id'])
                 self.update_row_checkbox_only(account_obj['tree_id'], account_obj)
+        # 选中状态变化时，更新批量备注控件显示
+        self.update_batch_remarks_visibility()
 
     def update_row_checkbox_only(self, tree_item_id, account_obj):
         select_char = "☑" if account_obj.get('selected_state', False) else "☐"
@@ -236,6 +250,7 @@ class AccountManagerApp:
     def set_remarks(self, account_obj, remark_text):
         account_obj['remarks'] = remark_text
         self.filter_treeview()
+        self.save_data()  # 新增：备注修改后自动保存
 
     def _update_account_status_and_time(self, account_obj, new_available_time_dt=None):
         if new_available_time_dt is None:
@@ -266,6 +281,7 @@ class AccountManagerApp:
                 moved_account = self.accounts_data.pop(original_index)
                 self.accounts_data.insert(0, moved_account)
             self.filter_treeview()
+            self.save_data()  # 新增：快捷操作后自动保存
 
     def update_row_in_treeview(self, tree_item_id, account_obj):
         select_char = "☑" if account_obj.get('selected_state', False) else "☐"
@@ -340,6 +356,17 @@ class AccountManagerApp:
                 items_to_reselect_in_ui.append(tree_item_id)
         self.tree.selection_set(*items_to_reselect_in_ui)
 
+    def update_batch_remarks_visibility(self):
+        selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
+        if selected_accounts:
+            # 显示
+            self.batch_remarks_combo.pack(side=tk.RIGHT, padx=5)
+            self.batch_remarks_btn.pack(side=tk.RIGHT, padx=5)
+        else:
+            # 隐藏
+            self.batch_remarks_combo.pack_forget()
+            self.batch_remarks_btn.pack_forget()
+
     def filter_treeview(self, _event=None):
         show_available = self.show_available_only_var.get()
         filtered_data = []
@@ -349,6 +376,8 @@ class AccountManagerApp:
             if match_status:
                 filtered_data.append(acc)
         self.populate_treeview(filtered_data)
+        # 过滤后也要刷新批量备注控件显示
+        self.update_batch_remarks_visibility()
 
     def sort_by_remarks(self):
         self.remarks_sort_reverse = not getattr(self, "remarks_sort_reverse", False)
@@ -425,7 +454,11 @@ class AccountManagerApp:
             acc_copy.pop('tree_id', None)
             acc_copy.pop('selected_state', None)
             acc_copy.pop('status', None)
-            acc_copy['remarks'] = self.REMARKS_TO_JSON.get(acc_copy['remarks'], 0)
+            # 判断备注内容
+            if acc_copy['remarks'] in self.REMARKS_TO_JSON:
+                acc_copy['remarks'] = self.REMARKS_TO_JSON[acc_copy['remarks']]
+            else:
+                acc_copy['remarks'] = acc_copy['remarks']  # 其它内容直接存字符串
             data_to_save.append(acc_copy)
         try:
             with open(self.data_file, 'w', encoding='utf-8') as f:
@@ -441,7 +474,11 @@ class AccountManagerApp:
                 for entry in loaded_entries:
                     entry.setdefault('selected_state', False)
                     entry.setdefault('available_time', datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-                    entry['remarks'] = self.REMARKS_FROM_JSON.get(entry.get('remarks', 0), '')
+                    # 兼容数字和字符串
+                    if isinstance(entry.get('remarks', ""), int):
+                        entry['remarks'] = self.REMARKS_FROM_JSON.get(entry.get('remarks', 0), '')
+                    else:
+                        entry['remarks'] = entry.get('remarks', '')
                     entry.pop('id', None)
                     entry.pop('shortcut', None)
                     entry.pop('delay_days', None)
@@ -468,6 +505,8 @@ class AccountManagerApp:
         new_state = not all_currently_selected
         for acc_obj in visible_accounts:
             self._set_account_selection_state(acc_obj, new_state)
+        # 选中状态变化时，更新批量备注控件显示
+        self.update_batch_remarks_visibility()
 
     def delete_selected(self):
         selected_accounts_to_delete = [
@@ -506,6 +545,21 @@ class AccountManagerApp:
             messagebox.showinfo("导出成功", f"选中的账号和密码已成功导出到:\n{filepath}", parent=self.root)
         except Exception as e:
             messagebox.showerror("导出失败", f"导出文件失败: {e}", parent=self.root)
+
+    def batch_set_remarks(self):
+        remark = self.batch_remarks_var.get()
+        if remark == "批量备注":
+            messagebox.showinfo("提示", "请选择备注类型。", parent=self.root)
+            return
+        selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
+        if not selected_accounts:
+            messagebox.showinfo("提示", "请先选中账号。", parent=self.root)
+            return
+        for acc in selected_accounts:
+            acc['remarks'] = remark
+        self.filter_treeview()
+        self.save_data()
+        messagebox.showinfo("批量备注", f"已为 {len(selected_accounts)} 个账号设置备注：{remark}", parent=self.root)
 
 class ManualAddAccountDialog:
     def __init__(self, parent):
