@@ -38,9 +38,9 @@ class AccountManagerApp:
     def _configure_treeview_style(self):
         style = ttk.Style()
         style.map('Treeview',
-                  background=[('selected', 'white')],
+                  background=[('selected', 'lightgreen')],
                   foreground=[('selected', 'black')])
-        self.tree.tag_configure("可用", background="lightgreen")
+        self.tree.tag_configure("可用", background="#e0e0e0", foreground="black")
         self.tree.tag_configure("不可用", background="salmon")
 
     def setup_ui(self):
@@ -50,7 +50,6 @@ class AccountManagerApp:
             ("导入TXT", self.import_txt),
             ("导出选中", self.export_txt),
             ("手动添加", self.manual_add_account_dialog),
-            ("保存", self.save_data),
             ("刷新", self.refresh_treeview),
         ]
         for text, command in buttons_data:
@@ -59,8 +58,11 @@ class AccountManagerApp:
         search_frame.pack(fill=tk.X)
         self.show_available_only_var = tk.BooleanVar()
         ttk.Checkbutton(search_frame, text="只显示可用", variable=self.show_available_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
-        ttk.Button(search_frame, text="删除选中", command=self.delete_selected).pack(side=tk.RIGHT, padx=5)
+        # 删除按钮先不显示
+        self.delete_btn = ttk.Button(search_frame, text="删除选中", command=self.delete_selected)
         ttk.Button(search_frame, text="全选/取消全选", command=self.select_all_toggle).pack(side=tk.RIGHT, padx=5)
+        # 默认不显示删除按钮
+        self.delete_btn.pack_forget()
 
         # 新增：批量备注下拉栏和按钮（默认隐藏）
         self.batch_remarks_var = tk.StringVar()
@@ -357,10 +359,14 @@ class AccountManagerApp:
             # 显示
             self.batch_remarks_combo.pack(side=tk.RIGHT, padx=5)
             self.batch_remarks_btn.pack(side=tk.RIGHT, padx=5)
+            # 显示删除按钮
+            self.delete_btn.pack(side=tk.RIGHT, padx=5)
         else:
             # 隐藏
             self.batch_remarks_combo.pack_forget()
             self.batch_remarks_btn.pack_forget()
+            # 隐藏删除按钮
+            self.delete_btn.pack_forget()
 
     def filter_treeview(self, _event=None):
         show_available = self.show_available_only_var.get()
