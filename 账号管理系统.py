@@ -3,6 +3,31 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
 
+class DaysHoursDialog(simpledialog.Dialog):
+    def body(self, master):
+        tk.Label(master, text="天数:").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(master, text="小时:").grid(row=1, column=0, padx=5, pady=5)
+        self.days_var = tk.IntVar(value=0)
+        self.hours_var = tk.IntVar(value=0)
+        self.days_entry = tk.Entry(master, textvariable=self.days_var)
+        self.hours_entry = tk.Entry(master, textvariable=self.hours_var)
+        self.days_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.hours_entry.grid(row=1, column=1, padx=5, pady=5)
+        return self.days_entry
+
+    def apply(self):
+        self.result = (self.days_var.get(), self.hours_var.get())
+
+    def buttonbox(self):
+        box = tk.Frame(self)
+        w = tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE)
+        w.pack(side=tk.LEFT, padx=5, pady=5)
+        w = tk.Button(box, text="取消", width=10, command=self.cancel)
+        w.pack(side=tk.LEFT, padx=5, pady=5)
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+        box.pack()
+
 class AccountManagerApp:
     COLUMNS = ("select", "account", "password", "status", "available_time", "remarks", "shortcut")
     HEADINGS_MAP = {
@@ -233,10 +258,23 @@ class AccountManagerApp:
         shortcut_menu.add_command(label="7天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=7))
         shortcut_menu.add_command(label="14天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
         shortcut_menu.add_command(label="30天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=30))
+        shortcut_menu.add_separator()
+        shortcut_menu.add_command(label="自定义天数/小时", command=lambda: self._custom_shortcut(account_obj))
         try:
             shortcut_menu.tk_popup(event.x_root, event.y_root)
         finally:
             shortcut_menu.grab_release()
+
+    def _custom_shortcut(self, account_obj):
+        # 使用自定义对话框输入天数和小时
+        dlg = DaysHoursDialog(self.root, title="自定义天数/小时")
+        if dlg.result is None:
+            return
+        custom_days, custom_hours = dlg.result
+        if custom_days == 0 and custom_hours == 0:
+            messagebox.showinfo("提示", "天数和小时不能同时为0。", parent=self.root)
+            return
+        self.apply_shortcut(account_obj, "delta", days=custom_days, hours=custom_hours)
 
     def _show_remarks_menu(self, event, account_obj):
         remarks_menu = tk.Menu(self.root, tearoff=0)
