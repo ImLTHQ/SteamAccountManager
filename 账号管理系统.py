@@ -278,21 +278,50 @@ class AccountManagerApp:
 
     def _show_remarks_menu(self, event, account_obj):
         remarks_menu = tk.Menu(self.root, tearoff=0)
+
+        remarks_menu.add_command(label="清空", command=lambda: self.set_remarks(account_obj, ""))
+        remarks_menu.add_separator()
         remarks_menu.add_command(label="一级", command=lambda: self.set_remarks(account_obj, "一级"))
         remarks_menu.add_command(label="二级", command=lambda: self.set_remarks(account_obj, "二级"))
         remarks_menu.add_command(label="国一", command=lambda: self.set_remarks(account_obj, "国一"))
         remarks_menu.add_command(label="国二", command=lambda: self.set_remarks(account_obj, "国二"))
         remarks_menu.add_command(label="优先", command=lambda: self.set_remarks(account_obj, "优先"))
-        remarks_menu.add_command(label="清空", command=lambda: self.set_remarks(account_obj, ""))
+        remarks_menu.add_separator()
+        remarks_menu.add_command(label="自定义备注", command=lambda: self._custom_remarks(account_obj))
         try:
             remarks_menu.tk_popup(event.x_root, event.y_root)
         finally:
             remarks_menu.grab_release()
 
+    def _custom_remarks(self, account_obj):
+        # 自定义弹窗输入备注
+        class CustomRemarkDialog(simpledialog.Dialog):
+            def body(self, master):
+                tk.Label(master, text="请输入自定义备注:").pack(padx=10, pady=10)
+                self.remark_var = tk.StringVar()
+                self.remark_entry = tk.Entry(master, textvariable=self.remark_var, width=30, font=("Arial", 10))  # 缩小宽度
+                self.remark_entry.pack(padx=10, pady=5)
+                return self.remark_entry
+
+            def apply(self):
+                self.result = self.remark_var.get()
+
+            def buttonbox(self):
+                box = tk.Frame(self)
+                tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
+                tk.Button(box, text="取消", width=10, command=self.cancel, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
+                self.bind("<Return>", self.ok)
+                self.bind("<Escape>", self.cancel)
+                box.pack()
+
+        dlg = CustomRemarkDialog(self.root, title="自定义备注")
+        if dlg.result:
+            self.set_remarks(account_obj, dlg.result)
+
     def set_remarks(self, account_obj, remark_text):
         account_obj['remarks'] = remark_text
         self.filter_treeview()
-        self.save_data()  # 新增：备注修改后自动保存
+        self.save_data()
 
     def _update_account_status_and_time(self, account_obj, new_available_time_dt=None):
         if new_available_time_dt is None:
@@ -316,7 +345,7 @@ class AccountManagerApp:
             self._update_account_status_and_time(account_obj, new_available_time_dt)
             # 删除置顶逻辑，快捷操作后不再置顶
             self.filter_treeview()
-            self.save_data()  # 新增：快捷操作后自动保存
+            self.save_data()
 
     def update_row_in_treeview(self, tree_item_id, account_obj):
         select_char = "☑" if account_obj.get('selected_state', False) else "☐"
