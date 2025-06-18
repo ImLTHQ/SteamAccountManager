@@ -215,12 +215,7 @@ class AccountManagerApp:
         if not item_id: return
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
-        if column_header_text == "备注":
-            current_remarks_display = account_obj.get('remarks', '')
-            new_remarks_display = simpledialog.askstring("编辑备注", "请输入新备注:", initialvalue=current_remarks_display, parent=self.root)
-            if new_remarks_display is not None:
-                self.set_remarks(account_obj, new_remarks_display)
-        elif column_header_text == "快捷":
+        if column_header_text == "快捷":
             pass
 
     def on_tree_right_click(self, event):
