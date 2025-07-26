@@ -3,7 +3,7 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
 
-version = "1.0"
+version = "1.1"
 
 class DaysHoursDialog(simpledialog.Dialog):
     def body(self, master):
@@ -67,6 +67,7 @@ class AccountManagerApp:
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
         self.remarks_sort_reverse = False
+        self.sorting_state = {} # 新增：存放各列排序状态（False为升序，True为降序）
         self.setup_ui()
         self._configure_treeview_style()
         self.load_data()
@@ -130,7 +131,11 @@ class AccountManagerApp:
         for col_id in self.COLUMNS:
             self.tree.heading(col_id, text=self.HEADINGS_MAP[col_id])
             self.tree.column(col_id, width=self.COLUMN_WIDTHS[col_id], anchor=self.COLUMN_ANCHORS.get(col_id, tk.W))
-        self.tree.heading("remarks", text=self.HEADINGS_MAP["remarks"], command=self.sort_by_remarks)
+        # 为下列列增加点击排序功能（备注、冷却时间、账号、状态）
+        self.tree.heading("remarks", text=self.HEADINGS_MAP["remarks"], command=lambda: self.sort_by_column("remarks"))
+        self.tree.heading("shortcut", text=self.HEADINGS_MAP["shortcut"], command=lambda: self.sort_by_column("shortcut"))
+        self.tree.heading("account", text=self.HEADINGS_MAP["account"], command=lambda: self.sort_by_column("account"))
+        self.tree.heading("status", text=self.HEADINGS_MAP["status"], command=lambda: self.sort_by_column("status"))
         self.tree.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscroll=scrollbar.set)
@@ -140,6 +145,35 @@ class AccountManagerApp:
         self.tree.bind("<ButtonRelease-1>", self.on_tree_button_release)
         self.tree.bind("<Button-3>", self.on_tree_right_click)
         self.tree.bind("<Double-1>", self.on_tree_double_click)
+
+    def sort_by_column(self, column):
+        # 切换该列的排序状态
+        cur_reverse = self.sorting_state.get(column, False)
+        new_reverse = not cur_reverse
+        self.sorting_state[column] = new_reverse
+
+        if column == "remarks":
+            remarks_order = {"": 0, "一级": 1, "二级": 2}
+            key_func = lambda acc: remarks_order.get(acc.get("remarks", ""), 0)
+        elif column == "shortcut":
+            # 根据可用时间排序
+            def key_func(acc):
+                try:
+                    dt = datetime.datetime.strptime(acc.get("available_time", ""), "%Y-%m-%d %H:%M")
+                except Exception:
+                    dt = datetime.datetime.min
+                return dt
+        elif column == "account":
+            key_func = lambda acc: acc.get("account", "").lower()
+        elif column == "status":
+            # 可用排在前面
+            def key_func(acc):
+                status = acc.get("status", "")
+                return 0 if status == "可用" else 1
+        else:
+            key_func = lambda acc: acc.get(column)
+        self.accounts_data.sort(key=key_func, reverse=new_reverse)
+        self.filter_treeview()
 
     def get_account_by_tree_id(self, tree_item_id):
         return next((acc for acc in self.accounts_data if acc.get('tree_id') == tree_item_id), None)
