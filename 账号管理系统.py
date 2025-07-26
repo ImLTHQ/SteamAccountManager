@@ -83,6 +83,11 @@ class AccountManagerApp:
         search_frame.pack(fill=tk.X)
         self.show_available_only_var = tk.BooleanVar()
         ttk.Checkbutton(search_frame, text="只显示可用", variable=self.show_available_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
+        
+        # 新增：只显示已备注
+        self.show_remarked_only_var = tk.BooleanVar()
+        ttk.Checkbutton(search_frame, text="只显示已备注", variable=self.show_remarked_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
+        
         # 删除按钮先不显示
         self.delete_btn = ttk.Button(search_frame, text="删除选中", command=self.delete_selected)
         ttk.Button(search_frame, text="全选/取消全选", command=self.select_all_toggle).pack(side=tk.RIGHT, padx=5)
@@ -432,11 +437,14 @@ class AccountManagerApp:
 
     def filter_treeview(self, _event=None):
         show_available = self.show_available_only_var.get()
+        show_remarked = getattr(self, "show_remarked_only_var", None)
+        show_remarked = show_remarked.get() if show_remarked else False
         filtered_data = []
         for acc in self.accounts_data:
             self._update_account_status_and_time(acc)
             match_status = (not show_available or (show_available and acc['status'] == "可用"))
-            if match_status:
+            match_remark = (not show_remarked or (show_remarked and acc.get('remarks', '').strip()))
+            if match_status and match_remark:
                 filtered_data.append(acc)
         self.populate_treeview(filtered_data)
         # 过滤后也要刷新批量备注控件显示
