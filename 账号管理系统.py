@@ -7,8 +7,9 @@ class DaysHoursDialog(simpledialog.Dialog):
     def body(self, master):
         tk.Label(master, text="天数:").grid(row=0, column=0, padx=5, pady=5)
         tk.Label(master, text="小时:").grid(row=1, column=0, padx=5, pady=5)
-        self.days_var = tk.IntVar(value=0)
-        self.hours_var = tk.IntVar(value=0)
+        # 使用 StringVar 来允许空输入
+        self.days_var = tk.StringVar(value="")
+        self.hours_var = tk.StringVar(value="")
         self.days_entry = tk.Entry(master, textvariable=self.days_var)
         self.hours_entry = tk.Entry(master, textvariable=self.hours_var)
         self.days_entry.grid(row=0, column=1, padx=5, pady=5)
@@ -16,7 +17,16 @@ class DaysHoursDialog(simpledialog.Dialog):
         return self.days_entry
 
     def apply(self):
-        self.result = (self.days_var.get(), self.hours_var.get())
+        # 留空时转换为0
+        try:
+            custom_days = int(self.days_var.get().strip()) if self.days_var.get().strip() != "" else 0
+        except ValueError:
+            custom_days = 0
+        try:
+            custom_hours = int(self.hours_var.get().strip()) if self.hours_var.get().strip() != "" else 0
+        except ValueError:
+            custom_hours = 0
+        self.result = (custom_days, custom_hours)
 
     def buttonbox(self):
         box = tk.Frame(self)
