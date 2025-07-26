@@ -2,8 +2,10 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
+import urllib.request
 
-version = "1.1"
+version = "1.2"
+github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 class DaysHoursDialog(simpledialog.Dialog):
     def body(self, master):
@@ -728,4 +730,18 @@ class ManualAddAccountDialog:
 if __name__ == "__main__":
     root = tk.Tk()
     app = AccountManagerApp(root)
+
+    def check_for_update():
+        try:
+            with urllib.request.urlopen(github_url, timeout=3) as response:
+                remote_version = response.read().decode('utf-8').strip()
+                if remote_version != version:
+                    current_title = root.title()
+                    if "[有新版本]" not in current_title:
+                        root.title(current_title + " [有新版本]")
+        except Exception:
+            pass
+
+    # 延后执行检测，避免阻塞界面
+    root.after(100, check_for_update)
     root.mainloop()
