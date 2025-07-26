@@ -88,6 +88,15 @@ class AccountManagerApp:
         ]
         for text, command in buttons_data:
             ttk.Button(top_frame, text=text, command=command).pack(side=tk.LEFT, padx=5)
+        # 新增：在 top_frame 的右侧添加搜索框
+        search_box_frame = ttk.Frame(top_frame)
+        search_box_frame.pack(side=tk.RIGHT, padx=5)
+        ttk.Label(search_box_frame, text="搜索账号:").pack(side=tk.LEFT)
+        self.search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_box_frame, textvariable=self.search_var, width=20)
+        search_entry.pack(side=tk.LEFT, padx=5)
+        search_entry.bind("<KeyRelease>", lambda event: self.filter_treeview())
+        
         search_frame = ttk.Frame(self.root, padding="10")
         search_frame.pack(fill=tk.X)
         self.show_available_only_var = tk.BooleanVar()
@@ -106,10 +115,10 @@ class AccountManagerApp:
         # 新增：批量备注下拉栏和按钮（默认隐藏）
         self.batch_remarks_var = tk.StringVar()
         self.batch_remarks_combo = ttk.Combobox(
-            search_frame, textvariable=self.batch_remarks_var, state="normal", width=8  # 允许输入
+            search_frame, textvariable=self.batch_remarks_var, state="normal", width=8
         )
         self.batch_remarks_combo['values'] = ("清空", "一级", "二级")
-        self.batch_remarks_combo.set("")  # 默认空白
+        self.batch_remarks_combo.set("")
         self.batch_remarks_btn = ttk.Button(search_frame, text="批量备注", command=self.batch_set_remarks)
         self.batch_remarks_combo.pack_forget()
         self.batch_remarks_btn.pack_forget()
@@ -440,15 +449,16 @@ class AccountManagerApp:
         show_available = self.show_available_only_var.get()
         show_remarked = getattr(self, "show_remarked_only_var", None)
         show_remarked = show_remarked.get() if show_remarked else False
+        search_text = self.search_var.get().strip().lower() if hasattr(self, "search_var") else ""
         filtered_data = []
         for acc in self.accounts_data:
             self._update_account_status_and_time(acc)
             match_status = (not show_available or (show_available and acc['status'] == "可用"))
             match_remark = (not show_remarked or (show_remarked and acc.get('remarks', '').strip()))
-            if match_status and match_remark:
+            match_search = (not search_text or search_text in acc.get('account', '').lower())
+            if match_status and match_remark and match_search:
                 filtered_data.append(acc)
         self.populate_treeview(filtered_data)
-        # 过滤后也要刷新批量备注控件显示
         self.update_batch_remarks_visibility()
 
     def sort_by_remarks(self):
