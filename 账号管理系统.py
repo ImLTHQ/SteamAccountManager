@@ -3,6 +3,8 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
 
+version = "1.0"
+
 class DaysHoursDialog(simpledialog.Dialog):
     def body(self, master):
         tk.Label(master, text="天数:").grid(row=0, column=0, padx=5, pady=5)
@@ -57,7 +59,7 @@ class AccountManagerApp:
 
     def __init__(self, root_window):
         self.root = root_window
-        self.root.title("账号管理系统")
+        self.root.title("账号管理系统 - v" + version)
         self.root.geometry("1050x600")
         self.accounts_data = []
         self.data_file = "accounts_data.json"
