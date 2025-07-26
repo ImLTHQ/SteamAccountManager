@@ -17,15 +17,14 @@ class DaysHoursDialog(simpledialog.Dialog):
         return self.days_entry
 
     def apply(self):
-        # 留空时转换为0
-        try:
-            custom_days = int(self.days_var.get().strip()) if self.days_var.get().strip() != "" else 0
-        except ValueError:
-            custom_days = 0
-        try:
-            custom_hours = int(self.hours_var.get().strip()) if self.hours_var.get().strip() != "" else 0
-        except ValueError:
-            custom_hours = 0
+        days_str = self.days_var.get().strip()
+        hours_str = self.hours_var.get().strip()
+        # 当输入非数字时不执行任何操作，仅关闭对话框
+        if (days_str and not days_str.isdigit()) or (hours_str and not hours_str.isdigit()):
+            self.result = None
+            return
+        custom_days = int(days_str) if days_str else 0
+        custom_hours = int(hours_str) if hours_str else 0
         self.result = (custom_days, custom_hours)
 
     def buttonbox(self):
