@@ -42,7 +42,7 @@ class AccountManagerApp:
     HEADINGS_MAP = {
         "select": "选择", "account": "账号", "password": "密码",
         "status": "状态", "available_time": "可用时间", "remarks": "备注",
-        "shortcut": "快捷"
+        "shortcut": "冷却时间"
     }
     COLUMN_WIDTHS = {
         "select": 50, "account": 150, "password": 150, "status": 80,
@@ -228,7 +228,7 @@ class AccountManagerApp:
         if not item_id: return
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
-        if column_header_text == "快捷":
+        if column_header_text == "冷却时间":
             pass
 
     def on_tree_right_click(self, event):
@@ -240,13 +240,13 @@ class AccountManagerApp:
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
         column_header_text = self.tree.heading(column_id_str)['text']
-        if column_header_text not in ("备注", "快捷") and not (event.state & 0x0004 or event.state & 0x0008):
+        if column_header_text not in ("备注", "冷却时间") and not (event.state & 0x0004 or event.state & 0x0008):
             for acc in self.accounts_data:
                 self._set_account_selection_state(acc, False)
             self._set_account_selection_state(account_obj, True)
         if column_header_text == "备注":
             self._show_remarks_menu(event, account_obj)
-        elif column_header_text == "快捷":
+        elif column_header_text == "冷却时间":
             self._show_shortcut_menu(event, account_obj)
         elif column_header_text == "账号":
             self.root.clipboard_clear()
