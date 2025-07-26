@@ -43,8 +43,8 @@ class AccountManagerApp:
         "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
         "remarks": tk.CENTER, "shortcut": tk.CENTER
     }
-    REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2, "国一": 3, "国二": 4, "优先": 5}
-    REMARKS_FROM_JSON = {0: "", 1: "一级", 2: "二级", 3: "国一", 4: "国二", 5: "优先"}
+    REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2}
+    REMARKS_FROM_JSON = {0: "", 1: "一级", 2: "二级"}
 
     def __init__(self, root_window):
         self.root = root_window
@@ -99,7 +99,7 @@ class AccountManagerApp:
         self.batch_remarks_combo = ttk.Combobox(
             search_frame, textvariable=self.batch_remarks_var, state="readonly", width=8
         )
-        self.batch_remarks_combo['values'] = ("", "一级", "二级", "国一", "国二", "优先")
+        self.batch_remarks_combo['values'] = ("", "一级", "二级")
         self.batch_remarks_combo.set("")
         self.batch_remarks_btn = ttk.Button(search_frame, text="批量备注", command=self.batch_set_remarks)
         # 默认不显示
@@ -283,9 +283,6 @@ class AccountManagerApp:
         remarks_menu.add_separator()
         remarks_menu.add_command(label="一级", command=lambda: self.set_remarks(account_obj, "一级"))
         remarks_menu.add_command(label="二级", command=lambda: self.set_remarks(account_obj, "二级"))
-        remarks_menu.add_command(label="国一", command=lambda: self.set_remarks(account_obj, "国一"))
-        remarks_menu.add_command(label="国二", command=lambda: self.set_remarks(account_obj, "国二"))
-        remarks_menu.add_command(label="优先", command=lambda: self.set_remarks(account_obj, "优先"))
         remarks_menu.add_separator()
         remarks_menu.add_command(label="自定义备注", command=lambda: self._custom_remarks(account_obj))
         try:
@@ -452,7 +449,7 @@ class AccountManagerApp:
 
     def sort_by_remarks(self):
         self.remarks_sort_reverse = not getattr(self, "remarks_sort_reverse", False)
-        remarks_order = {"": 0, "一级": 1, "二级": 2, "国一": 3, "国二": 4, "优先": 5}
+        remarks_order = {"": 0, "一级": 1, "二级": 2}
         self.accounts_data.sort(
             key=lambda acc: remarks_order.get(acc.get("remarks", ""), 0),
             reverse=self.remarks_sort_reverse
