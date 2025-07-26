@@ -97,12 +97,11 @@ class AccountManagerApp:
         # 新增：批量备注下拉栏和按钮（默认隐藏）
         self.batch_remarks_var = tk.StringVar()
         self.batch_remarks_combo = ttk.Combobox(
-            search_frame, textvariable=self.batch_remarks_var, state="readonly", width=8
+            search_frame, textvariable=self.batch_remarks_var, state="normal", width=8  # 允许输入
         )
-        self.batch_remarks_combo['values'] = ("", "一级", "二级")
-        self.batch_remarks_combo.set("")
+        self.batch_remarks_combo['values'] = ("清空", "一级", "二级")
+        self.batch_remarks_combo.set("")  # 默认空白
         self.batch_remarks_btn = ttk.Button(search_frame, text="批量备注", command=self.batch_set_remarks)
-        # 默认不显示
         self.batch_remarks_combo.pack_forget()
         self.batch_remarks_btn.pack_forget()
         tree_frame = ttk.Frame(self.root, padding="10")
@@ -272,9 +271,9 @@ class AccountManagerApp:
             return
         custom_days, custom_hours = dlg.result
         if custom_days == 0 and custom_hours == 0:
-            messagebox.showinfo("提示", "天数和小时不能同时为0。", parent=self.root)
-            return
-        self.apply_shortcut(account_obj, "delta", days=custom_days, hours=custom_hours)
+            self.apply_shortcut(account_obj, "reset")
+        else:
+            self.apply_shortcut(account_obj, "delta", days=custom_days, hours=custom_hours)
 
     def _show_remarks_menu(self, event, account_obj):
         remarks_menu = tk.Menu(self.root, tearoff=0)
@@ -420,16 +419,12 @@ class AccountManagerApp:
     def update_batch_remarks_visibility(self):
         selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
         if selected_accounts:
-            # 显示
             self.batch_remarks_combo.pack(side=tk.RIGHT, padx=5)
             self.batch_remarks_btn.pack(side=tk.RIGHT, padx=5)
-            # 显示删除按钮
             self.delete_btn.pack(side=tk.RIGHT, padx=5)
         else:
-            # 隐藏
             self.batch_remarks_combo.pack_forget()
             self.batch_remarks_btn.pack_forget()
-            # 隐藏删除按钮
             self.delete_btn.pack_forget()
 
     def filter_treeview(self, _event=None):
@@ -491,11 +486,11 @@ class AccountManagerApp:
                                 if self._add_new_account_entry(account, password):
                                     new_accounts_count += 1
             if new_accounts_count > 0:
-                messagebox.showinfo("导入成功", f"成功导入 {new_accounts_count} 个新账号。", parent=self.root)
+                messagebox.showinfo("导入成功", f"成功导入 {new_accounts_count} 个新账号", parent=self.root)
                 self.filter_treeview()
                 self.save_data()
             else:
-                messagebox.showinfo("导入提示", "没有新的账号被导入（可能已存在或文件格式不正确）。", parent=self.root)
+                messagebox.showinfo("导入提示", "没有新的账号被导入（可能已存在或格式不正确）", parent=self.root)
                 self.filter_treeview()
         except Exception as e:
             messagebox.showerror("导入错误", f"导入文件失败: {e}", parent=self.root)
@@ -509,10 +504,10 @@ class AccountManagerApp:
                 if self._add_new_account_entry(account, password):
                     new_accounts_count += 1
             if new_accounts_count > 0:
-                messagebox.showinfo("添加成功", f"成功添加 {new_accounts_count} 个新账号。", parent=self.root)
+                messagebox.showinfo("添加成功", f"成功添加 {new_accounts_count} 个新账号", parent=self.root)
                 self.save_data()
             elif dialog.new_accounts_data:
-                messagebox.showinfo("添加提示", "没有新的账号被添加（可能已存在）。", parent=self.root)
+                messagebox.showinfo("添加提示", "没有新的账号被添加（可能已存在）", parent=self.root)
             self.filter_treeview()
 
     def save_data(self):
@@ -581,7 +576,7 @@ class AccountManagerApp:
             (acc['account'], acc['password']) for acc in self.accounts_data if acc.get('selected_state', False)
         ]
         if not selected_accounts_to_delete:
-            messagebox.showinfo("删除选中", "没有选中的账号可删除。", parent=self.root)
+            messagebox.showinfo("删除选中", "没有选中的账号可删除", parent=self.root)
             return
         if messagebox.askyesno("确认删除", f"确定要删除选中的 {len(selected_accounts_to_delete)} 个账号吗?", parent=self.root):
             self.accounts_data = [
@@ -590,12 +585,12 @@ class AccountManagerApp:
             ]
             self.filter_treeview()
             self.save_data()
-            messagebox.showinfo("删除成功", f"{len(selected_accounts_to_delete)} 个账号已删除。", parent=self.root)
+            messagebox.showinfo("删除成功", f"{len(selected_accounts_to_delete)} 个账号已删除", parent=self.root)
 
     def export_txt(self):
         selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
         if not selected_accounts:
-            messagebox.showinfo("导出提示", "没有选中的账号可导出。", parent=self.root)
+            messagebox.showinfo("导出提示", "没有选中的账号可导出", parent=self.root)
             return
         filepath = filedialog.asksaveasfilename(
             defaultextension=".txt",
@@ -615,19 +610,23 @@ class AccountManagerApp:
             messagebox.showerror("导出失败", f"导出文件失败: {e}", parent=self.root)
 
     def batch_set_remarks(self):
-        remark = self.batch_remarks_var.get()
-        if remark == "批量备注":
-            messagebox.showinfo("提示", "请选择备注类型。", parent=self.root)
-            return
+        remark = self.batch_remarks_var.get().strip()
         selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
         if not selected_accounts:
-            messagebox.showinfo("提示", "请先选中账号。", parent=self.root)
+            messagebox.showinfo("提示", "请先选中账号", parent=self.root)
             return
+        if remark == "":
+            messagebox.showinfo("提示", "请输入备注内容", parent=self.root)
+            return
+        # 新增：如果选择“清空”，则备注设为空字符串
+        if remark == "清空":
+            remark = ""
         for acc in selected_accounts:
             acc['remarks'] = remark
+        msg = f"已为 {len(selected_accounts)} 个账号{'清空备注' if remark == '' else f'设置备注：{remark}'}"
         self.filter_treeview()
         self.save_data()
-        messagebox.showinfo("批量备注", f"已为 {len(selected_accounts)} 个账号设置备注：{remark}", parent=self.root)
+        messagebox.showinfo("批量备注", msg, parent=self.root)
 
 class ManualAddAccountDialog:
     def __init__(self, parent):
