@@ -4,7 +4,7 @@ import datetime
 import json
 import urllib.request
 
-version = "1.2"
+version = "1.2.1"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 class DaysHoursDialog(simpledialog.Dialog):
@@ -482,6 +482,10 @@ class AccountManagerApp:
             self.batch_remarks_combo.pack_forget()
             self.batch_remarks_btn.pack_forget()
             self.delete_btn.pack_forget()
+        # 新增：更新"选择"列的表头，显示选中的数量
+        count = len(selected_accounts)
+        header_text = f"选择:{count}" if count > 0 else "选择"
+        self.tree.heading("select", text=header_text)
 
     def filter_treeview(self, _event=None):
         show_available = self.show_available_only_var.get()
