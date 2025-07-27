@@ -4,7 +4,7 @@ import datetime
 import json
 import urllib.request
 
-version = "1.2.1"
+version = "1.3"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 class DaysHoursDialog(simpledialog.Dialog):
@@ -200,10 +200,8 @@ class AccountManagerApp:
 
     def on_tree_button_press(self, event):
         item_id = self.tree.identify_row(event.y)
-        column_id_str = self.tree.identify_column(event.x)
-        column_header_text = ""
-        if column_id_str:
-            column_header_text = self.tree.heading(column_id_str)['text']
+        col = self.tree.identify_column(event.x)
+        # 重置拖拽相关状态
         self._drag_start_item = None
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
@@ -212,7 +210,8 @@ class AccountManagerApp:
                 for acc in self.accounts_data:
                     self._set_account_selection_state(acc, False)
             return
-        if column_header_text == "选择":
+        # 使用列索引判断第一列（“选择”列）
+        if col == "#1":
             account_obj = self.get_account_by_tree_id(item_id)
             if account_obj:
                 current_state = account_obj.get('selected_state', False)
@@ -221,8 +220,10 @@ class AccountManagerApp:
                 self._selection_mode_toggle = not current_state
                 self._last_selected_items_in_drag.add(item_id)
             return
-        if column_header_text in ("账号", "密码"):
-            self.root.after(150, lambda: self._handle_single_click_copy(item_id, column_header_text))
+        # 其它列按原有逻辑处理（例如点击“账号”或“密码”进行复制）
+        header_text = self.tree.heading(col)['text']
+        if header_text in ("账号", "密码"):
+            self.root.after(150, lambda: self._handle_single_click_copy(item_id, header_text))
 
     def _handle_single_click_copy(self, item_id, column_header_text):
         if self._drag_start_item:
