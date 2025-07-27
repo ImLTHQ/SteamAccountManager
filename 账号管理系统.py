@@ -738,7 +738,7 @@ if __name__ == "__main__":
     def check_for_update():
         try:
             with urllib.request.urlopen(github_url, timeout=3) as response:
-                remote_version = response.read().decode('utf-8').strip()
+                remote_version = response.read().decode('utf-8-sig').strip()
                 if remote_version != version:
                     current_title = root.title()
                     if "[有新版本]" not in current_title:
