@@ -4,7 +4,7 @@ import datetime
 import json
 import urllib.request
 
-version = "1.3"
+version = "1.3.1"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 class DaysHoursDialog(simpledialog.Dialog):
@@ -313,7 +313,7 @@ class AccountManagerApp:
         shortcut_menu.add_command(label="3天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=3))
         shortcut_menu.add_command(label="7天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=7))
         shortcut_menu.add_command(label="14天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
-        shortcut_menu.add_command(label="30天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=30))
+        shortcut_menu.add_command(label="45天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=45))
         shortcut_menu.add_separator()
         shortcut_menu.add_command(label="自定义天数/小时", command=lambda: self._custom_shortcut(account_obj))
         try:
