@@ -7,15 +7,11 @@ import urllib.request
 version = "1.3.2"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
-# 去除 remote_version 前后的 BOM 和空白字符
-def normalize_version(ver):
-    return ver.replace('\ufeff', '').strip()
-
 def check_for_update():
     try:
         with urllib.request.urlopen(github_url, timeout=3) as response:
-            remote_version = response.read().decode('utf-8').strip()
-            if normalize_version(remote_version) != version:
+            remote_version = response.read().decode('utf-8-sig').strip()
+            if remote_version != version:
                 current_title = root.title()
                 if "[有新版本]" not in current_title:
                     root.title(current_title + " [有新版本]")
