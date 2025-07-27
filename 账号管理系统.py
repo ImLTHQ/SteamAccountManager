@@ -4,8 +4,23 @@ import datetime
 import json
 import urllib.request
 
-version = "1.3.1"
+version = "1.3.2"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
+
+# 去除 remote_version 前后的 BOM 和空白字符
+def normalize_version(ver):
+    return ver.replace('\ufeff', '').strip()
+
+def check_for_update():
+    try:
+        with urllib.request.urlopen(github_url, timeout=3) as response:
+            remote_version = response.read().decode('utf-8').strip()
+            if normalize_version(remote_version) != version:
+                current_title = root.title()
+                if "[有新版本]" not in current_title:
+                    root.title(current_title + " [有新版本]")
+    except Exception:
+        pass
 
 class DaysHoursDialog(simpledialog.Dialog):
     def body(self, master):
@@ -732,24 +747,7 @@ class ManualAddAccountDialog:
                         self.new_accounts_data.append((account, password))
         self.top.destroy()
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = AccountManagerApp(root)
-    # 修正：去除 remote_version 前后的 BOM 和空白字符
-    def normalize_version(ver):
-        return ver.replace('\ufeff', '').strip()
-
-    def check_for_update():
-        try:
-            with urllib.request.urlopen(github_url, timeout=3) as response:
-                remote_version = response.read().decode('utf-8').strip()
-                if normalize_version(remote_version) != normalize_version(version):
-                    current_title = root.title()
-                    if "[有新版本]" not in current_title:
-                        root.title(current_title + " [有新版本]")
-        except Exception:
-            pass
-
-    # 延后执行检测，避免阻塞界面
-    root.after(100, check_for_update)
-    root.mainloop()
+root = tk.Tk()
+app = AccountManagerApp(root)
+check_for_update()
+root.mainloop()
