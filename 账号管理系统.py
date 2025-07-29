@@ -4,7 +4,7 @@ import datetime
 import json
 import urllib.request
 
-version = "1.3.3"
+version = "1.3.2"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -187,14 +187,6 @@ class AccountManagerApp:
             key_func = lambda acc: acc.get(column)
         self.accounts_data.sort(key=key_func, reverse=new_reverse)
         self.filter_treeview()
-
-        # 更新排序列表头，添加箭头表示排序方向（仅对被点击列添加，其他列恢复原始名称）
-        sortable_columns = ["remarks", "shortcut", "account", "status"]
-        for col in sortable_columns:
-            arrow = ""
-            if col == column:
-                arrow = " ↓" if new_reverse else " ↑"
-            self.tree.heading(col, text=self.HEADINGS_MAP[col] + arrow, command=lambda c=col: self.sort_by_column(c))
 
     def get_account_by_tree_id(self, tree_item_id):
         return next((acc for acc in self.accounts_data if acc.get('tree_id') == tree_item_id), None)
@@ -639,10 +631,6 @@ class AccountManagerApp:
     def refresh_treeview(self):
         self.load_data()
         self.filter_treeview()
-        # 重置排序列表头，移除箭头
-        sortable_columns = ["remarks", "shortcut", "account", "status"]
-        for col in sortable_columns:
-            self.tree.heading(col, text=self.HEADINGS_MAP[col], command=lambda c=col: self.sort_by_column(c))
 
     def select_all_toggle(self):
         visible_item_ids = self.tree.get_children()
