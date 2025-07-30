@@ -4,7 +4,7 @@ import datetime
 import json
 import urllib.request
 
-version = "1.3.2"
+version = "1.3.3"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -78,12 +78,13 @@ class AccountManagerApp:
         self.root.title("账号管理系统 - v" + version)
         self.root.geometry("1050x600")
         self.accounts_data = []
+        self.original_data = []  # 保存原始数据用于恢复未排序状态
         self.data_file = "accounts_data.json"
         self._drag_start_item = None
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
         self.remarks_sort_reverse = False
-        self.sorting_state = {} # 存放各列排序状态（False为升序，True为降序）
+        self.sorting_state = {}  # 存放各列排序状态：None=未排序, False=升序, True=降序
         self.setup_ui()
         self._configure_treeview_style()
         self.load_data()
@@ -107,7 +108,7 @@ class AccountManagerApp:
         ]
         for text, command in buttons_data:
             ttk.Button(top_frame, text=text, command=command).pack(side=tk.LEFT, padx=5)
-        # 新增：在 top_frame 的右侧添加搜索框
+        # 在 top_frame 的右侧添加搜索框
         search_box_frame = ttk.Frame(top_frame)
         search_box_frame.pack(side=tk.RIGHT, padx=5)
         ttk.Label(search_box_frame, text="搜索账号:").pack(side=tk.LEFT)
@@ -121,7 +122,7 @@ class AccountManagerApp:
         self.show_available_only_var = tk.BooleanVar()
         ttk.Checkbutton(search_frame, text="只显示可用", variable=self.show_available_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
-        # 新增：只显示已备注
+        # 只显示已备注
         self.show_remarked_only_var = tk.BooleanVar()
         ttk.Checkbutton(search_frame, text="只显示已备注", variable=self.show_remarked_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
@@ -131,7 +132,7 @@ class AccountManagerApp:
         # 默认不显示删除按钮
         self.delete_btn.pack_forget()
 
-        # 新增：批量备注下拉栏和按钮（默认隐藏）
+        # 批量备注下拉栏和按钮（默认隐藏）
         self.batch_remarks_var = tk.StringVar()
         self.batch_remarks_combo = ttk.Combobox(
             search_frame, textvariable=self.batch_remarks_var, state="normal", width=8
@@ -163,12 +164,10 @@ class AccountManagerApp:
         self.tree.bind("<Double-1>", self.on_tree_double_click)
 
     def sort_by_column(self, column):
-        # 切换该列的排序状态
-        cur_reverse = self.sorting_state.get(column, False)
-        new_reverse = not cur_reverse
-        self.sorting_state[column] = new_reverse
-
-        # 更新所有表头，移除箭头
+        # 获取当前排序状态
+        current_state = self.sorting_state.get(column, None)
+        
+        # 清除所有表头的箭头
         for col_id in self.COLUMNS:
             original_text = self.HEADINGS_MAP[col_id]
             current_text = self.tree.heading(col_id, "text")
@@ -176,10 +175,30 @@ class AccountManagerApp:
             if current_text.endswith(self.SORT_ASC) or current_text.endswith(self.SORT_DESC):
                 self.tree.heading(col_id, text=original_text)
         
-        # 为当前排序列添加相应的箭头
-        arrow = self.SORT_DESC if new_reverse else self.SORT_ASC
-        self.tree.heading(column, text=self.HEADINGS_MAP[column] + arrow)
+        # 状态循环：None(未排序) → False(升序) → True(降序) → None(未排序)
+        if current_state is None:
+            # 从未排序切换到升序
+            new_state = False
+            arrow = self.SORT_ASC
+            self.sorting_state[column] = new_state
+            self.tree.heading(column, text=self.HEADINGS_MAP[column] + arrow)
+            self._sort_data(column, new_state)
+        elif current_state is False:
+            # 从升序切换到降序
+            new_state = True
+            arrow = self.SORT_DESC
+            self.sorting_state[column] = new_state
+            self.tree.heading(column, text=self.HEADINGS_MAP[column] + arrow)
+            self._sort_data(column, new_state)
+        else:
+            # 从降序切换到未排序（恢复原始顺序）
+            self.sorting_state[column] = None
+            # 恢复原始数据顺序
+            self.accounts_data = [acc.copy() for acc in self.original_data]
+            self.filter_treeview()
 
+    def _sort_data(self, column, reverse):
+        """实际执行排序的方法"""
         if column == "remarks":
             remarks_order = {"": 0, "一级": 1, "二级": 2}
             key_func = lambda acc: remarks_order.get(acc.get("remarks", ""), 0)
@@ -200,8 +219,23 @@ class AccountManagerApp:
                 return 0 if status == "可用" else 1
         else:
             key_func = lambda acc: acc.get(column)
-        self.accounts_data.sort(key=key_func, reverse=new_reverse)
+            
+        self.accounts_data.sort(key=key_func, reverse=reverse)
         self.filter_treeview()
+
+    def reset_sorting(self):
+        """重置所有排序状态"""
+        # 清除所有表头的箭头
+        for col_id in self.COLUMNS:
+            original_text = self.HEADINGS_MAP[col_id]
+            current_text = self.tree.heading(col_id, "text")
+            if current_text.endswith(self.SORT_ASC) or current_text.endswith(self.SORT_DESC):
+                self.tree.heading(col_id, text=original_text)
+        
+        # 重置排序状态
+        self.sorting_state = {}
+        # 恢复原始数据顺序
+        self.accounts_data = [acc.copy() for acc in self.original_data]
 
     def get_account_by_tree_id(self, tree_item_id):
         return next((acc for acc in self.accounts_data if acc.get('tree_id') == tree_item_id), None)
@@ -408,6 +442,11 @@ class AccountManagerApp:
 
     def set_remarks(self, account_obj, remark_text):
         account_obj['remarks'] = remark_text
+        # 更新原始数据中的备注信息
+        for orig_acc in self.original_data:
+            if orig_acc['account'] == account_obj['account'] and orig_acc['password'] == account_obj['password']:
+                orig_acc['remarks'] = remark_text
+                break
         self.filter_treeview()
         self.save_data()
 
@@ -421,6 +460,13 @@ class AccountManagerApp:
             available_dt = new_available_time_dt
         account_obj['available_time'] = available_dt.strftime("%Y-%m-%d %H:%M")
         account_obj['status'] = "可用" if available_dt <= datetime.datetime.now() else "不可用"
+        
+        # 更新原始数据中的时间和状态
+        for orig_acc in self.original_data:
+            if orig_acc['account'] == account_obj['account'] and orig_acc['password'] == account_obj['password']:
+                orig_acc['available_time'] = account_obj['available_time']
+                orig_acc['status'] = account_obj['status']
+                break
 
     def apply_shortcut(self, account_obj, action_type, hours=0, days=0):
         now = datetime.datetime.now()
@@ -431,7 +477,7 @@ class AccountManagerApp:
             new_available_time_dt = now + datetime.timedelta(days=days, hours=hours)
         if new_available_time_dt:
             self._update_account_status_and_time(account_obj, new_available_time_dt)
-            # 删除置顶逻辑，快捷操作后不再置顶
+            # 快捷操作后保持当前排序状态
             self.filter_treeview()
             self.save_data()
 
@@ -518,7 +564,7 @@ class AccountManagerApp:
             self.batch_remarks_combo.pack_forget()
             self.batch_remarks_btn.pack_forget()
             self.delete_btn.pack_forget()
-        # 新增：更新"选择"列的表头，显示选中的数量
+        # 更新"选择"列的表头，显示选中的数量
         count = len(selected_accounts)
         header_text = f"选择:{count}" if count > 0 else "选择"
         self.tree.heading("select", text=header_text)
@@ -559,6 +605,7 @@ class AccountManagerApp:
                 'selected_state': False
             }
             self.accounts_data.append(new_acc)
+            self.original_data.append(new_acc.copy())  # 添加到原始数据
             return True
         return False
 
@@ -609,7 +656,7 @@ class AccountManagerApp:
 
     def save_data(self):
         data_to_save = []
-        for acc in self.accounts_data:
+        for acc in self.original_data:  # 保存原始数据
             acc_copy = acc.copy()
             acc_copy.pop('tree_id', None)
             acc_copy.pop('selected_state', None)
@@ -631,6 +678,7 @@ class AccountManagerApp:
             with open(self.data_file, 'r', encoding='utf-8') as f:
                 loaded_entries = json.load(f)
                 self.accounts_data = []
+                self.original_data = []  # 重置原始数据
                 for entry in loaded_entries:
                     entry.setdefault('selected_state', False)
                     entry.setdefault('available_time', datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -644,15 +692,20 @@ class AccountManagerApp:
                     entry.pop('delay_days', None)
                     entry.pop('delay_hours', None)
                     entry.pop('status', None)
-                    self.accounts_data.append(entry)
+                    self.accounts_data.append(entry.copy())
+                    self.original_data.append(entry.copy())  # 同时添加到原始数据
         except FileNotFoundError:
             self.accounts_data = []
+            self.original_data = []
         except Exception as e:
             messagebox.showerror("加载错误", f"加载数据失败: {e}", parent=self.root)
             self.accounts_data = []
+            self.original_data = []
         self.filter_treeview()
 
     def refresh_treeview(self):
+        # 刷新时重置排序状态
+        self.reset_sorting()
         self.load_data()
         self.filter_treeview()
 
@@ -676,8 +729,13 @@ class AccountManagerApp:
             messagebox.showinfo("删除选中", "没有选中的账号可删除", parent=self.root)
             return
         if messagebox.askyesno("确认删除", f"确定要删除选中的 {len(selected_accounts_to_delete)} 个账号吗?", parent=self.root):
+            # 从当前数据和原始数据中都删除
             self.accounts_data = [
                 acc for acc in self.accounts_data
+                if (acc['account'], acc['password']) not in selected_accounts_to_delete
+            ]
+            self.original_data = [
+                acc for acc in self.original_data
                 if (acc['account'], acc['password']) not in selected_accounts_to_delete
             ]
             self.filter_treeview()
@@ -715,11 +773,16 @@ class AccountManagerApp:
         if remark == "":
             messagebox.showinfo("提示", "请输入备注内容", parent=self.root)
             return
-        # 新增：如果选择“清空”，则备注设为空字符串
+        # 如果选择“清空”，则备注设为空字符串
         if remark == "清空":
             remark = ""
         for acc in selected_accounts:
             acc['remarks'] = remark
+            # 同时更新原始数据
+            for orig_acc in self.original_data:
+                if orig_acc['account'] == acc['account'] and orig_acc['password'] == acc['password']:
+                    orig_acc['remarks'] = remark
+                    break
         msg = f"已为 {len(selected_accounts)} 个账号{'清空备注' if remark == '' else f'设置备注：{remark}'}"
         self.filter_treeview()
         self.save_data()
