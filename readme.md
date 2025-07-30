@@ -2,6 +2,10 @@
 
 管理CS账号密码，备注账号信息，计算冷却时间
 
+# 使用前安装外部库
+
+- `pip install pypinyin`
+
 # 打包说明
 
 1. 安装 PyInstaller

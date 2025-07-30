@@ -3,8 +3,10 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
 import urllib.request
+import pypinyin
+from pypinyin import Style
 
-version = "1.3.3"
+version = "1.3.4"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -17,6 +19,24 @@ def check_for_update():
                     root.title(current_title + " [有新版本]")
     except Exception:
         pass
+
+def get_pinyin_initial_abbr(text):
+    # 获取中文文本每个字的拼音首字母大写缩写
+    if not text:
+        return ""
+    # 处理每个字符的拼音首字母
+    initials = []
+    for char in text:
+        # 获取拼音首字母（忽略声调）
+        pinyin_list = pypinyin.pinyin(char, style=Style.FIRST_LETTER, strict=False)
+        if pinyin_list and pinyin_list[0]:
+            initial = pinyin_list[0][0].upper()  # 转为大写
+            initials.append(initial)
+        else:
+            # 非中文字符直接保留（转为大写）
+            initials.append(str(char).upper())
+    return ''.join(initials)
+
 
 class DaysHoursDialog(simpledialog.Dialog):
     def body(self, master):
@@ -51,6 +71,29 @@ class DaysHoursDialog(simpledialog.Dialog):
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
         box.pack()
+
+
+class ManualAddAccountDialog(simpledialog.Dialog):
+    def body(self, master):
+        tk.Label(master, text="请输入账号和密码（每行一个，格式：账号----密码）:").pack(padx=10, pady=5)
+        self.text_widget = tk.Text(master, width=50, height=10)
+        self.text_widget.pack(padx=10, pady=5)
+        return self.text_widget
+
+    def apply(self):
+        content = self.text_widget.get("1.0", tk.END).strip()
+        self.new_accounts_data = []
+        if not content:
+            return
+        for line in content.split("\n"):
+            line = line.strip()
+            if "----" in line:
+                parts = line.split("----", 1)
+                account = parts[0].strip()
+                password = parts[1].strip()
+                if account and password:
+                    self.new_accounts_data.append((account, password))
+
 
 class AccountManagerApp:
     COLUMNS = ("select", "account", "password", "status", "available_time", "remarks", "shortcut")
@@ -198,10 +241,13 @@ class AccountManagerApp:
             self.filter_treeview()
 
     def _sort_data(self, column, reverse):
-        """实际执行排序的方法"""
+        # 实际执行排序的方法
         if column == "remarks":
-            remarks_order = {"": 0, "一级": 1, "二级": 2}
-            key_func = lambda acc: remarks_order.get(acc.get("remarks", ""), 0)
+            # 只按拼音首字母排序（移除预设优先级）
+            def key_func(acc):
+                remark = acc.get("remarks", "")
+                # 直接返回拼音首字母排序
+                return get_pinyin_initial_abbr(remark)
         elif column == "shortcut":
             # 根据可用时间排序
             def key_func(acc):
@@ -219,7 +265,7 @@ class AccountManagerApp:
                 return 0 if status == "可用" else 1
         else:
             key_func = lambda acc: acc.get(column)
-            
+        
         self.accounts_data.sort(key=key_func, reverse=reverse)
         self.filter_treeview()
 
@@ -743,94 +789,49 @@ class AccountManagerApp:
             messagebox.showinfo("删除成功", f"{len(selected_accounts_to_delete)} 个账号已删除", parent=self.root)
 
     def export_txt(self):
-        selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
+        selected_accounts = [
+            acc for acc in self.accounts_data if acc.get('selected_state', False)
+        ]
         if not selected_accounts:
-            messagebox.showinfo("导出提示", "没有选中的账号可导出", parent=self.root)
+            messagebox.showinfo("导出选中", "没有选中的账号可导出", parent=self.root)
             return
+        
         filepath = filedialog.asksaveasfilename(
+            title="导出选中账号",
             defaultextension=".txt",
             filetypes=(("Text files", "*.txt"), ("All files", "*.*")),
-            title="导出选中账号密码到TXT文件",
             parent=self.root
         )
-        if not filepath: return
+        if not filepath:
+            return
+        
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 for acc in selected_accounts:
-                    account = str(acc.get('account', ''))
-                    password = str(acc.get('password', ''))
-                    f.write(f"{account}----{password}\n")
-            messagebox.showinfo("导出成功", f"选中的账号和密码已成功导出到:\n{filepath}", parent=self.root)
+                    line = f"{acc['account']}----{acc['password']}\n"
+                    f.write(line)
+            messagebox.showinfo("导出成功", f"成功导出 {len(selected_accounts)} 个账号到 {filepath}", parent=self.root)
         except Exception as e:
-            messagebox.showerror("导出失败", f"导出文件失败: {e}", parent=self.root)
+            messagebox.showerror("导出错误", f"导出文件失败: {e}", parent=self.root)
 
     def batch_set_remarks(self):
-        remark = self.batch_remarks_var.get().strip()
-        selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
+        selected_accounts = [
+            acc for acc in self.accounts_data if acc.get('selected_state', False)
+        ]
         if not selected_accounts:
-            messagebox.showinfo("提示", "请先选中账号", parent=self.root)
             return
-        if remark == "":
-            messagebox.showinfo("提示", "请输入备注内容", parent=self.root)
-            return
-        # 如果选择“清空”，则备注设为空字符串
-        if remark == "清空":
-            remark = ""
+            
+        remark_text = self.batch_remarks_var.get()
+        if remark_text == "清空":
+            remark_text = ""
+            
         for acc in selected_accounts:
-            acc['remarks'] = remark
-            # 同时更新原始数据
-            for orig_acc in self.original_data:
-                if orig_acc['account'] == acc['account'] and orig_acc['password'] == acc['password']:
-                    orig_acc['remarks'] = remark
-                    break
-        msg = f"已为 {len(selected_accounts)} 个账号{'清空备注' if remark == '' else f'设置备注：{remark}'}"
-        self.filter_treeview()
-        self.save_data()
-        messagebox.showinfo("批量备注", msg, parent=self.root)
-
-class ManualAddAccountDialog:
-    def __init__(self, parent):
-        self.top = tk.Toplevel(parent)
-        self.top.title("手动添加账号")
-        self.top.geometry("450x350")
-        self.top.transient(parent)
-        self.top.grab_set()
-        self.top.update_idletasks()
-        w = self.top.winfo_width()
-        h = self.top.winfo_height()
-        ws = self.top.winfo_screenwidth()
-        hs = self.top.winfo_screenheight()
-        x = (ws // 2) - (w // 2)
-        y = (hs // 2) - (h // 2)
-        self.top.geometry(f"{w}x{h}+{x}+{y}")
-        self.new_accounts_data = []
-        ttk.Label(self.top, text="请输入账号信息，每行一个账号，格式为：账号----密码", wraplength=430).pack(pady=(10,5))
-        example_text = "例如:\nusername1----password1\nusername2----password2"
-        ttk.Label(self.top, text=example_text, justify=tk.LEFT).pack(pady=5)
-        self.text_area = tk.Text(self.top, height=10, width=50)
-        self.text_area.pack(pady=10, padx=10)
-        button_frame = ttk.Frame(self.top)
-        button_frame.pack(pady=5)
-        ttk.Button(button_frame, text="添加", command=self._add_accounts).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="取消", command=self.top.destroy).pack(side=tk.LEFT, padx=5)
-        self.top.protocol("WM_DELETE_WINDOW", self.top.destroy)
-        self.top.wait_window()
-
-    def _add_accounts(self):
-        input_text = self.text_area.get("1.0", tk.END).strip()
-        lines = input_text.split('\n')
-        for line in lines:
-            line = line.strip()
-            if "----" in line:
-                parts = line.split("----")
-                if len(parts) >= 2:
-                    account = parts[0].strip()
-                    password = parts[1].strip()
-                    if account and password:
-                        self.new_accounts_data.append((account, password))
-        self.top.destroy()
+            self.set_remarks(acc, remark_text)
+        
+        self.batch_remarks_var.set("")
+        messagebox.showinfo("批量备注", f"已为 {len(selected_accounts)} 个账号设置备注为: {remark_text}", parent=self.root)
 
 root = tk.Tk()
 app = AccountManagerApp(root)
-check_for_update()
+root.after(1000, check_for_update)  # 启动后延迟1秒检查更新
 root.mainloop()
