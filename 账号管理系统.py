@@ -205,6 +205,9 @@ class AccountManagerApp:
         self.tree.bind("<ButtonRelease-1>", self.on_tree_button_release)
         self.tree.bind("<Button-3>", self.on_tree_right_click)
         self.tree.bind("<Double-1>", self.on_tree_double_click)
+        # 添加Github信息标签（新增代码）
+        github_label = ttk.Label(self.root, text="GitHub: ImLTHQ/SteamAccountManager", font=("Arial", 10))
+        github_label.pack(side=tk.RIGHT)
 
     def sort_by_column(self, column):
         # 获取当前排序状态
