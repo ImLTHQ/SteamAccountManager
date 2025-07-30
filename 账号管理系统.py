@@ -6,7 +6,7 @@ import urllib.request
 import pypinyin
 from pypinyin import Style
 
-version = "1.4"
+version = "1.4.1"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -73,6 +73,76 @@ class DaysHoursDialog(simpledialog.Dialog):
         box.pack()
 
 
+class DateTimeDialog(simpledialog.Dialog):
+    # 用于修改日期时间的对话框
+    def __init__(self, parent, title, initial_datetime):
+        self.initial_datetime = initial_datetime
+        super().__init__(parent, title)
+    
+    def body(self, master):
+        # 获取当前日期时间的各个部分
+        year = self.initial_datetime.year
+        month = self.initial_datetime.month
+        day = self.initial_datetime.day
+        hour = self.initial_datetime.hour
+        minute = self.initial_datetime.minute
+        
+        # 创建变量存储用户输入
+        self.year_var = tk.IntVar(value=year)
+        self.month_var = tk.IntVar(value=month)
+        self.day_var = tk.IntVar(value=day)
+        self.hour_var = tk.IntVar(value=hour)
+        self.minute_var = tk.IntVar(value=minute)
+        
+        # 创建输入框
+        tk.Label(master, text="年:").grid(row=0, column=0, padx=5, pady=5)
+        tk.Spinbox(master, from_=2000, to=2100, textvariable=self.year_var, width=5).grid(row=0, column=1, padx=5, pady=5)
+        
+        tk.Label(master, text="月:").grid(row=0, column=2, padx=5, pady=5)
+        tk.Spinbox(master, from_=1, to=12, textvariable=self.month_var, width=3).grid(row=0, column=3, padx=5, pady=5)
+        
+        tk.Label(master, text="日:").grid(row=0, column=4, padx=5, pady=5)
+        tk.Spinbox(master, from_=1, to=31, textvariable=self.day_var, width=3).grid(row=0, column=5, padx=5, pady=5)
+        
+        tk.Label(master, text="时:").grid(row=1, column=0, padx=5, pady=5)
+        tk.Spinbox(master, from_=0, to=23, textvariable=self.hour_var, width=3).grid(row=1, column=1, padx=5, pady=5)
+        
+        tk.Label(master, text="分:").grid(row=1, column=2, padx=5, pady=5)
+        tk.Spinbox(master, from_=0, to=59, textvariable=self.minute_var, width=3).grid(row=1, column=3, padx=5, pady=5)
+        
+        return master
+    
+    def apply(self):
+        try:
+            self.result = datetime.datetime(
+                self.year_var.get(),
+                self.month_var.get(),
+                self.day_var.get(),
+                self.hour_var.get(),
+                self.minute_var.get()
+            )
+        except ValueError as e:
+            messagebox.showerror("输入错误", f"无效的日期时间: {e}")
+            self.result = None
+
+    def buttonbox(self):
+        # 创建按钮框
+        box = tk.Frame(self)
+        
+        # 确定按钮（替换原来的OK按钮）
+        w = tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE)
+        w.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        # 取消按钮（替换原来的Cancel按钮）
+        w = tk.Button(box, text="取消", width=10, command=self.cancel)
+        w.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        # 绑定回车键和ESC键
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+        
+        box.pack()
+
 class ManualAddAccountDialog(simpledialog.Dialog):
     def body(self, master):
         tk.Label(master, text="请输入账号和密码（每行一个，格式：账号----密码）:").pack(padx=10, pady=5)
@@ -99,8 +169,7 @@ class AccountManagerApp:
     COLUMNS = ("select", "account", "password", "status", "available_time", "remarks", "shortcut")
     HEADINGS_MAP = {
         "select": "选择", "account": "账号", "password": "密码",
-        "status": "状态", "available_time": "可用时间", "remarks": "备注",
-        "shortcut": "冷却时间"
+        "status": "状态", "available_time": "可用时间", "remarks": "备注", "shortcut": "冷却时间"
     }
     COLUMN_WIDTHS = {
         "select": 50, "account": 150, "password": 150, "status": 80,
@@ -285,7 +354,7 @@ class AccountManagerApp:
         self.filter_treeview()
 
     def reset_sorting(self):
-        """重置所有排序状态"""
+        # 重置所有排序状态
         # 清除所有表头的箭头
         for col_id in self.COLUMNS:
             original_text = self.HEADINGS_MAP[col_id]
@@ -418,7 +487,7 @@ class AccountManagerApp:
         # 移除箭头后再比较
         if column_header_text.endswith(self.SORT_ASC) or column_header_text.endswith(self.SORT_DESC):
             column_header_text = column_header_text[:-2]
-        if column_header_text not in ("备注", "冷却时间") and not (event.state & 0x0004 or event.state & 0x0008):
+        if column_header_text not in ("备注", "冷却时间", "可用时间") and not (event.state & 0x0004 or event.state & 0x0008):
             for acc in self.accounts_data:
                 self._set_account_selection_state(acc, False)
             self._set_account_selection_state(account_obj, True)
@@ -426,6 +495,8 @@ class AccountManagerApp:
             self._show_remarks_menu(event, account_obj)
         elif column_header_text == "冷却时间":
             self._show_shortcut_menu(event, account_obj)
+        elif column_header_text == "可用时间":
+            self._show_available_time_menu(event, account_obj)
         elif column_header_text == "账号":
             self.root.clipboard_clear()
             self.root.clipboard_append(account_obj['account'])
@@ -434,6 +505,32 @@ class AccountManagerApp:
             self.root.clipboard_clear()
             self.root.clipboard_append(account_obj['password'])
             self.root.update()
+
+    def _show_available_time_menu(self, event, account_obj):
+        # 显示修改可用时间的菜单
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label="修改可用时间", command=lambda: self._modify_available_time(account_obj))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _modify_available_time(self, account_obj):
+        # 修改账号的可用时间
+        try:
+            # 解析当前可用时间
+            current_time = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
+        except (ValueError, TypeError):
+            # 如果解析失败，使用当前时间
+            current_time = datetime.datetime.now()
+        
+        # 显示日期时间对话框
+        dlg = DateTimeDialog(self.root, "修改可用时间", current_time)
+        if dlg.result:
+            # 更新可用时间
+            self._update_account_status_and_time(account_obj, dlg.result)
+            self.filter_treeview()
+            self.save_data()
 
     def _show_shortcut_menu(self, event, account_obj):
         shortcut_menu = tk.Menu(self.root, tearoff=0)
