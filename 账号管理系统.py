@@ -69,6 +69,9 @@ class AccountManagerApp:
     }
     REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2}
     REMARKS_FROM_JSON = {0: "", 1: "一级", 2: "二级"}
+    # 排序箭头常量
+    SORT_ASC = " ↑"  # 升序箭头
+    SORT_DESC = " ↓" # 降序箭头
 
     def __init__(self, root_window):
         self.root = root_window
@@ -80,7 +83,7 @@ class AccountManagerApp:
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
         self.remarks_sort_reverse = False
-        self.sorting_state = {} # 新增：存放各列排序状态（False为升序，True为降序）
+        self.sorting_state = {} # 存放各列排序状态（False为升序，True为降序）
         self.setup_ui()
         self._configure_treeview_style()
         self.load_data()
@@ -165,6 +168,18 @@ class AccountManagerApp:
         new_reverse = not cur_reverse
         self.sorting_state[column] = new_reverse
 
+        # 更新所有表头，移除箭头
+        for col_id in self.COLUMNS:
+            original_text = self.HEADINGS_MAP[col_id]
+            current_text = self.tree.heading(col_id, "text")
+            # 如果当前文本包含箭头，则移除
+            if current_text.endswith(self.SORT_ASC) or current_text.endswith(self.SORT_DESC):
+                self.tree.heading(col_id, text=original_text)
+        
+        # 为当前排序列添加相应的箭头
+        arrow = self.SORT_DESC if new_reverse else self.SORT_ASC
+        self.tree.heading(column, text=self.HEADINGS_MAP[column] + arrow)
+
         if column == "remarks":
             remarks_order = {"": 0, "一级": 1, "二级": 2}
             key_func = lambda acc: remarks_order.get(acc.get("remarks", ""), 0)
@@ -233,6 +248,9 @@ class AccountManagerApp:
             return
         # 其它列按原有逻辑处理（例如点击“账号”或“密码”进行复制）
         header_text = self.tree.heading(col)['text']
+        # 移除箭头后再比较
+        if header_text.endswith(self.SORT_ASC) or header_text.endswith(self.SORT_DESC):
+            header_text = header_text[:-2]
         if header_text in ("账号", "密码"):
             self.root.after(150, lambda: self._handle_single_click_copy(item_id, header_text))
 
@@ -284,6 +302,9 @@ class AccountManagerApp:
         item_id = self.tree.identify_row(event.y)
         column_id_str = self.tree.identify_column(event.x)
         column_header_text = self.tree.heading(column_id_str)['text']
+        # 移除箭头后再比较
+        if column_header_text.endswith(self.SORT_ASC) or column_header_text.endswith(self.SORT_DESC):
+            column_header_text = column_header_text[:-2]
         if not item_id: return
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
@@ -299,6 +320,9 @@ class AccountManagerApp:
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
         column_header_text = self.tree.heading(column_id_str)['text']
+        # 移除箭头后再比较
+        if column_header_text.endswith(self.SORT_ASC) or column_header_text.endswith(self.SORT_DESC):
+            column_header_text = column_header_text[:-2]
         if column_header_text not in ("备注", "冷却时间") and not (event.state & 0x0004 or event.state & 0x0008):
             for acc in self.accounts_data:
                 self._set_account_selection_state(acc, False)
