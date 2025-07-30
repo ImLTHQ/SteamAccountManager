@@ -6,7 +6,7 @@ import urllib.request
 import pypinyin
 from pypinyin import Style
 
-version = "1.3.4"
+version = "1.4"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -154,7 +154,7 @@ class AccountManagerApp:
         # 在 top_frame 的右侧添加搜索框
         search_box_frame = ttk.Frame(top_frame)
         search_box_frame.pack(side=tk.RIGHT, padx=5)
-        ttk.Label(search_box_frame, text="搜索账号:").pack(side=tk.LEFT)
+        ttk.Label(search_box_frame, text="搜索:").pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
         search_entry = ttk.Entry(search_box_frame, textvariable=self.search_var, width=20)
         search_entry.pack(side=tk.LEFT, padx=5)
@@ -615,7 +615,7 @@ class AccountManagerApp:
         header_text = f"选择:{count}" if count > 0 else "选择"
         self.tree.heading("select", text=header_text)
 
-    def filter_treeview(self, _event=None):
+    def filter_treeview(self):
         show_available = self.show_available_only_var.get()
         show_remarked = getattr(self, "show_remarked_only_var", None)
         show_remarked = show_remarked.get() if show_remarked else False
@@ -625,7 +625,16 @@ class AccountManagerApp:
             self._update_account_status_and_time(acc)
             match_status = (not show_available or (show_available and acc['status'] == "可用"))
             match_remark = (not show_remarked or (show_remarked and acc.get('remarks', '').strip()))
-            match_search = (not search_text or search_text in acc.get('account', '').lower())
+        
+            # 修改搜索匹配逻辑：同时检查账号、密码和备注
+            if search_text:
+                account_match = search_text in acc.get('account', '').lower()
+                password_match = search_text in acc.get('password', '').lower()
+                remark_match = search_text in acc.get('remarks', '').lower()
+                match_search = account_match or password_match or remark_match
+            else:
+                match_search = True  # 无搜索内容时全部匹配
+            
             if match_status and match_remark and match_search:
                 filtered_data.append(acc)
         self.populate_treeview(filtered_data)
