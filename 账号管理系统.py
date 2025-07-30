@@ -191,11 +191,13 @@ class AccountManagerApp:
         for col_id in self.COLUMNS:
             self.tree.heading(col_id, text=self.HEADINGS_MAP[col_id])
             self.tree.column(col_id, width=self.COLUMN_WIDTHS[col_id], anchor=self.COLUMN_ANCHORS.get(col_id, tk.W))
-        # 为下列列增加点击排序功能（备注、冷却时间、账号、状态）
+        # 为下列列增加点击排序功能（备注、冷却时间、账号、状态、可用时间）
         self.tree.heading("remarks", text=self.HEADINGS_MAP["remarks"], command=lambda: self.sort_by_column("remarks"))
         self.tree.heading("shortcut", text=self.HEADINGS_MAP["shortcut"], command=lambda: self.sort_by_column("shortcut"))
         self.tree.heading("account", text=self.HEADINGS_MAP["account"], command=lambda: self.sort_by_column("account"))
         self.tree.heading("status", text=self.HEADINGS_MAP["status"], command=lambda: self.sort_by_column("status"))
+        # 添加可用时间列的排序功能
+        self.tree.heading("available_time", text=self.HEADINGS_MAP["available_time"], command=lambda: self.sort_by_column("available_time"))
         self.tree.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscroll=scrollbar.set)
@@ -205,7 +207,7 @@ class AccountManagerApp:
         self.tree.bind("<ButtonRelease-1>", self.on_tree_button_release)
         self.tree.bind("<Button-3>", self.on_tree_right_click)
         self.tree.bind("<Double-1>", self.on_tree_double_click)
-        # 添加Github信息标签（新增代码）
+        # 添加Github信息标签
         github_label = ttk.Label(self.root, text="GitHub: ImLTHQ/SteamAccountManager", font=("Arial", 10))
         github_label.pack(side=tk.RIGHT)
 
@@ -246,7 +248,7 @@ class AccountManagerApp:
     def _sort_data(self, column, reverse):
         # 实际执行排序的方法
         if column == "remarks":
-            # 只按拼音首字母排序（移除预设优先级）
+            # 只按拼音首字母排序
             def key_func(acc):
                 remark = acc.get("remarks", "")
                 # 直接返回拼音首字母排序
@@ -266,6 +268,16 @@ class AccountManagerApp:
             def key_func(acc):
                 status = acc.get("status", "")
                 return 0 if status == "可用" else 1
+        elif column == "available_time":
+            # 按可用时间排序
+            def key_func(acc):
+                try:
+                    # 将时间字符串转换为datetime对象进行比较
+                    dt = datetime.datetime.strptime(acc.get("available_time", ""), "%Y-%m-%d %H:%M")
+                except Exception:
+                    # 转换失败的时间视为最小时间
+                    dt = datetime.datetime.min
+                return dt
         else:
             key_func = lambda acc: acc.get(column)
         
