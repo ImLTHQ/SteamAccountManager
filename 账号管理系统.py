@@ -6,7 +6,7 @@ import urllib.request
 import pypinyin
 from pypinyin import Style
 
-version = "1.4.1"
+version = "1.4.2"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -166,17 +166,18 @@ class ManualAddAccountDialog(simpledialog.Dialog):
 
 
 class AccountManagerApp:
-    COLUMNS = ("select", "account", "password", "status", "available_time", "remarks", "shortcut")
+    # 添加"序号"列作为第一列
+    COLUMNS = ("index", "select", "account", "password", "status", "available_time", "remarks", "shortcut")
     HEADINGS_MAP = {
-        "select": "选择", "account": "账号", "password": "密码",
+        "index": "序号", "select": "选择", "account": "账号", "password": "密码",
         "status": "状态", "available_time": "可用时间", "remarks": "备注", "shortcut": "冷却时间"
     }
     COLUMN_WIDTHS = {
-        "select": 50, "account": 150, "password": 150, "status": 80,
-        "available_time": 160, "remarks": 100, "shortcut": 100
+        "index": 25, "select": 25, "account": 100, "password": 100, "status": 50,
+        "available_time": 100, "remarks": 100, "shortcut": 100
     }
     COLUMN_ANCHORS = {
-        "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
+        "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
         "remarks": tk.CENTER, "shortcut": tk.CENTER
     }
     REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2}
@@ -188,7 +189,7 @@ class AccountManagerApp:
     def __init__(self, root_window):
         self.root = root_window
         self.root.title("账号管理系统 - v" + version)
-        self.root.geometry("1050x600")
+        self.root.geometry("1000x600")
         self.accounts_data = []
         self.original_data = []  # 保存原始数据用于恢复未排序状态
         self.data_file = "accounts_data.json"
@@ -385,7 +386,8 @@ class AccountManagerApp:
     def update_row_checkbox_only(self, tree_item_id, account_obj):
         select_char = "☑" if account_obj.get('selected_state', False) else "☐"
         current_values = list(self.tree.item(tree_item_id, 'values'))
-        current_values[0] = select_char
+        # 序号列索引为0，选择列索引为1
+        current_values[1] = select_char
         self.tree.item(tree_item_id, values=current_values)
 
     def on_tree_button_press(self, event):
@@ -400,8 +402,8 @@ class AccountManagerApp:
                 for acc in self.accounts_data:
                     self._set_account_selection_state(acc, False)
             return
-        # 使用列索引判断第一列（“选择”列）
-        if col == "#1":
+        # 使用列索引判断第二列（“选择”列，序号列是第一列）
+        if col == "#2":
             account_obj = self.get_account_by_tree_id(item_id)
             if account_obj:
                 current_state = account_obj.get('selected_state', False)
@@ -661,7 +663,16 @@ class AccountManagerApp:
                     display_shortcut = "不足1小时"
         except (ValueError, TypeError):
             display_shortcut = ""
+            
+        # 找到当前项的索引
+        index = 1  # 默认序号为1
+        for i, item in enumerate(self.tree.get_children()):
+            if item == tree_item_id:
+                index = i + 1  # 序号从1开始
+                break
+                
         self.tree.item(tree_item_id, values=(
+            index,  # 序号
             select_char,
             account_obj['account'],
             account_obj['password'],
@@ -676,7 +687,7 @@ class AccountManagerApp:
             self.tree.delete(item)
         source_data = data_to_display if data_to_display is not None else self.accounts_data
         items_to_reselect_in_ui = []
-        for acc_data in source_data:
+        for index, acc_data in enumerate(source_data, 1):  # 从1开始计数
             self._update_account_status_and_time(acc_data)
             select_char = "☑" if acc_data.get('selected_state', False) else "☐"
             status_tag = acc_data['status']
@@ -699,6 +710,7 @@ class AccountManagerApp:
             except (ValueError, TypeError):
                 display_shortcut = ""
             tree_item_id = self.tree.insert("", tk.END, values=(
+                index,  # 序号
                 select_char,
                 acc_data['account'],
                 acc_data['password'],
