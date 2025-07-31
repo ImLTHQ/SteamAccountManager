@@ -6,7 +6,7 @@ import urllib.request
 import pypinyin
 from pypinyin import Style
 
-version = "1.4.2"
+version = "1.4.3"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -538,11 +538,12 @@ class AccountManagerApp:
         shortcut_menu = tk.Menu(self.root, tearoff=0)
         shortcut_menu.add_command(label="立即可用", command=lambda: self.apply_shortcut(account_obj, "reset"))
         shortcut_menu.add_separator()
-        shortcut_menu.add_command(label="20小时后", command=lambda: self.apply_shortcut(account_obj, "delta", hours=20))
-        shortcut_menu.add_command(label="3天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=3))
-        shortcut_menu.add_command(label="7天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=7))
-        shortcut_menu.add_command(label="14天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
-        shortcut_menu.add_command(label="45天后", command=lambda: self.apply_shortcut(account_obj, "delta", days=45))
+        shortcut_menu.add_command(label="20小时", command=lambda: self.apply_shortcut(account_obj, "delta", hours=20))
+        shortcut_menu.add_command(label="3天", command=lambda: self.apply_shortcut(account_obj, "delta", days=3))
+        shortcut_menu.add_command(label="7天", command=lambda: self.apply_shortcut(account_obj, "delta", days=7))
+        shortcut_menu.add_command(label="14天", command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
+        shortcut_menu.add_command(label="31天", command=lambda: self.apply_shortcut(account_obj, "delta", days=31))
+        shortcut_menu.add_command(label="45天", command=lambda: self.apply_shortcut(account_obj, "delta", days=45))
         shortcut_menu.add_separator()
         shortcut_menu.add_command(label="自定义天数/小时", command=lambda: self._custom_shortcut(account_obj))
         try:
