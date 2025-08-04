@@ -606,7 +606,7 @@ class AccountManagerApp:
         account_obj['remarks'] = remark_text
         # 更新原始数据中的备注信息
         for orig_acc in self.original_data:
-            if orig_acc['account'] == account_obj['account'] and orig_acc['password'] == account_obj['password']:
+            if orig_acc['account'] == account_obj['account']:  # 只比较账号
                 orig_acc['remarks'] = remark_text
                 break
         self.filter_treeview()
@@ -625,7 +625,7 @@ class AccountManagerApp:
         
         # 更新原始数据中的时间和状态
         for orig_acc in self.original_data:
-            if orig_acc['account'] == account_obj['account'] and orig_acc['password'] == account_obj['password']:
+            if orig_acc['account'] == account_obj['account']:  # 只比较账号
                 orig_acc['available_time'] = account_obj['available_time']
                 orig_acc['status'] = account_obj['status']
                 break
@@ -776,7 +776,8 @@ class AccountManagerApp:
         self.filter_treeview()
 
     def _add_new_account_entry(self, account, password):
-        if not any(acc['account'] == account and acc['password'] == password for acc in self.accounts_data):
+        # 只检查账号是否已存在，不考虑密码
+        if not any(acc['account'] == account for acc in self.accounts_data):
             default_available_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             new_acc = {
                 'account': account,
@@ -904,7 +905,7 @@ class AccountManagerApp:
 
     def delete_selected(self):
         selected_accounts_to_delete = [
-            (acc['account'], acc['password']) for acc in self.accounts_data if acc.get('selected_state', False)
+            acc['account'] for acc in self.accounts_data if acc.get('selected_state', False)
         ]
         if not selected_accounts_to_delete:
             messagebox.showinfo("删除选中", "没有选中的账号可删除", parent=self.root)
@@ -913,11 +914,11 @@ class AccountManagerApp:
             # 从当前数据和原始数据中都删除
             self.accounts_data = [
                 acc for acc in self.accounts_data
-                if (acc['account'], acc['password']) not in selected_accounts_to_delete
+                if acc['account'] not in selected_accounts_to_delete
             ]
             self.original_data = [
                 acc for acc in self.original_data
-                if (acc['account'], acc['password']) not in selected_accounts_to_delete
+                if acc['account'] not in selected_accounts_to_delete
             ]
             self.filter_treeview()
             self.save_data()
