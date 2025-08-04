@@ -544,6 +544,7 @@ class AccountManagerApp:
         shortcut_menu.add_command(label="14天", command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
         shortcut_menu.add_command(label="31天", command=lambda: self.apply_shortcut(account_obj, "delta", days=31))
         shortcut_menu.add_command(label="45天", command=lambda: self.apply_shortcut(account_obj, "delta", days=45))
+        shortcut_menu.add_command(label="181天", command=lambda: self.apply_shortcut(account_obj, "delta", days=181))
         shortcut_menu.add_separator()
         shortcut_menu.add_command(label="自定义天数/小时", command=lambda: self._custom_shortcut(account_obj))
         try:
