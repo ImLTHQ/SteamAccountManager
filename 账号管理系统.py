@@ -6,7 +6,7 @@ import urllib.request
 import pypinyin
 from pypinyin import Style
 
-version = "1.4.3"
+version = "1.5"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 def check_for_update():
@@ -164,6 +164,16 @@ class ManualAddAccountDialog(simpledialog.Dialog):
                 if account and password:
                     self.new_accounts_data.append((account, password))
 
+    def buttonbox(self):
+        # 重写buttonbox方法，移除回车键绑定
+        box = tk.Frame(self)
+        w = tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE)
+        w.pack(side=tk.LEFT, padx=5, pady=5)
+        w = tk.Button(box, text="取消", width=10, command=self.cancel)
+        w.pack(side=tk.LEFT, padx=5, pady=5)
+        # 只保留ESC键绑定，移除回车键绑定
+        self.bind("<Escape>", self.cancel)
+        box.pack()
 
 class AccountManagerApp:
     # 添加"序号"列作为第一列
@@ -967,7 +977,8 @@ class AccountManagerApp:
         self.batch_remarks_var.set("")
         messagebox.showinfo("批量备注", f"已为 {len(selected_accounts)} 个账号设置备注为: {remark_text}", parent=self.root)
 
-root = tk.Tk()
-app = AccountManagerApp(root)
-root.after(1000, check_for_update)  # 启动后延迟1秒检查更新
-root.mainloop()
+if __name__ == '__main__':
+    root = tk.Tk()
+    app = AccountManagerApp(root)
+    root.after(1000, check_for_update)  # 启动后延迟1秒检查更新
+    root.mainloop()
