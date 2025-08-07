@@ -8,7 +8,7 @@ from pypinyin import Style
 import locale
 
 # 版本和GitHub信息
-version = "1.5.1"
+version = "1.5.2"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 # 国际化支持
@@ -398,6 +398,8 @@ class AccountManagerApp:
                   foreground=[('selected', 'black')])
         self.tree.tag_configure(lang['status_available'], background="#e0e0e0", foreground="black")
         self.tree.tag_configure(lang['status_unavailable'], background="salmon")
+        # 配置空白行样式
+        self.tree.tag_configure('blank', background='#f0f0f0')
 
     def setup_ui(self):
         top_frame = ttk.Frame(self.root, padding="10")
@@ -559,6 +561,14 @@ class AccountManagerApp:
         self.accounts_data = [acc.copy() for acc in self.original_data]
 
     def get_account_by_tree_id(self, tree_item_id):
+        # 忽略空白行
+        if not tree_item_id:
+            return None
+        # 检查当前行是否为空白行（通过values判断）
+        values = self.tree.item(tree_item_id, 'values')
+        if all(v == "" for v in values):
+            return None
+        # 原有逻辑
         return next((acc for acc in self.accounts_data if acc.get('tree_id') == tree_item_id), None)
 
     def _set_account_selection_state(self, account_obj, state):
@@ -583,6 +593,13 @@ class AccountManagerApp:
     def on_tree_button_press(self, event):
         item_id = self.tree.identify_row(event.y)
         col = self.tree.identify_column(event.x)
+        
+        # 忽略空白行交互
+        if item_id:
+            values = self.tree.item(item_id, 'values')
+            if all(v == "" for v in values):
+                return  # 空白行不响应点击
+        
         # 重置拖拽相关状态
         self._drag_start_item = None
         self._last_selected_items_in_drag = set()
@@ -629,7 +646,19 @@ class AccountManagerApp:
         if not self._drag_start_item: return
         current_item = self.tree.identify_row(event.y)
         if not current_item: return
-        all_visible_items = list(self.tree.get_children())
+        
+        # 忽略空白行
+        values = self.tree.item(current_item, 'values')
+        if all(v == "" for v in values):
+            return
+            
+        all_visible_items = []
+        for item in self.tree.get_children():
+            # 过滤空白行
+            item_values = self.tree.item(item, 'values')
+            if not all(v == "" for v in item_values):
+                all_visible_items.append(item)
+                
         if not all_visible_items: return
         try:
             start_index = all_visible_items.index(self._drag_start_item)
@@ -662,6 +691,12 @@ class AccountManagerApp:
         if column_header_text.endswith(self.SORT_ASC) or column_header_text.endswith(self.SORT_DESC):
             column_header_text = column_header_text[:-2]
         if not item_id: return
+        
+        # 忽略空白行
+        values = self.tree.item(item_id, 'values')
+        if all(v == "" for v in values):
+            return
+            
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
         if column_header_text == lang['columns']['shortcut']:
@@ -673,6 +708,12 @@ class AccountManagerApp:
         column_id_str = self.tree.identify_column(event.x)
         item_id = self.tree.identify_row(event.y)
         if not item_id: return
+        
+        # 忽略空白行
+        values = self.tree.item(item_id, 'values')
+        if all(v == "" for v in values):
+            return
+            
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
         column_header_text = self.tree.heading(column_id_str)['text']
@@ -866,7 +907,13 @@ class AccountManagerApp:
             
         # 找到当前项的索引
         index = 1  # 默认序号为1
-        for i, item in enumerate(self.tree.get_children()):
+        visible_items = []
+        for item in self.tree.get_children():
+            item_values = self.tree.item(item, 'values')
+            if not all(v == "" for v in item_values):  # 排除空白行
+                visible_items.append(item)
+        
+        for i, item in enumerate(visible_items):
             if item == tree_item_id:
                 index = i + 1  # 序号从1开始
                 break
@@ -883,16 +930,48 @@ class AccountManagerApp:
         ), tags=(status_tag,))
 
     def populate_treeview(self, data_to_display=None):
+        # 清空现有内容
         for item in self.tree.get_children():
             self.tree.delete(item)
+        
         source_data = data_to_display if data_to_display is not None else self.accounts_data
         items_to_reselect_in_ui = []
-        for index, acc_data in enumerate(source_data, 1):  # 从1开始计数
+        
+        # 检查是否有任何列处于排序状态
+        is_sorted = any(v is not None for v in self.sorting_state.values())
+        
+        # 生成包含空白行的展示数据（仅在排序状态下）
+        display_data = []
+        if is_sorted:
+            prev_remark = None
+            for acc_data in source_data:
+                # 对比当前备注与上一条，不同则插入空白行
+                current_remark = acc_data.get('remarks', '')
+                if prev_remark is not None and current_remark != prev_remark:
+                    # 添加空白行标记
+                    display_data.append({'is_blank': True})
+                display_data.append(acc_data)
+                prev_remark = current_remark
+        else:
+            # 未排序状态，直接使用原始数据
+            display_data = source_data
+        
+        # 填充Treeview
+        real_index = 1  # 实际数据序号（跳过空白行）
+        for item_data in display_data:
+            if is_sorted and item_data.get('is_blank', False):
+                # 仅在排序状态下插入空白行
+                self.tree.insert("", tk.END, values=("", "", "", "", "", "", "", ""), tags=('blank',))
+                continue
+            
+            # 处理实际数据行
+            acc_data = item_data
             self._update_account_status_and_time(acc_data)
             select_char = "☑" if acc_data.get('selected_state', False) else "☐"
             status_tag = acc_data['status']
             acc_data.setdefault('remarks', '')
             display_shortcut = ""
+            
             try:
                 available_dt = datetime.datetime.strptime(acc_data['available_time'], "%Y-%m-%d %H:%M")
                 now = datetime.datetime.now()
@@ -902,23 +981,21 @@ class AccountManagerApp:
                     seconds_in_hour = 3600
                     hours = time_left.seconds // seconds_in_hour
                     
-                    # 根据语言和数量选择正确的单复数形式
                     day_unit = lang['day'] if days == 1 else lang['days']
                     hour_unit = lang['hour'] if hours == 1 else lang['hours']
                     
                     if days > 0:
-                        if hours > 0:
-                            display_shortcut = f"{days} {day_unit} {hours} {hour_unit}"
-                        else:
-                            display_shortcut = f"{days} {day_unit}"
+                        display_shortcut = f"{days} {day_unit} {hours} {hour_unit}" if hours > 0 else f"{days} {day_unit}"
                     elif hours > 0:
                         display_shortcut = f"{hours} {hour_unit}"
                     else:
                         display_shortcut = lang['less_than_one_hour']
             except (ValueError, TypeError):
                 display_shortcut = ""
+            
+            # 插入实际数据行（使用连续序号）
             tree_item_id = self.tree.insert("", tk.END, values=(
-                index,  # 序号
+                real_index,  # 序号保持连续（跳过空白行）
                 select_char,
                 acc_data['account'],
                 acc_data['password'],
@@ -927,9 +1004,14 @@ class AccountManagerApp:
                 acc_data['remarks'],
                 display_shortcut
             ), tags=(status_tag,))
+            
             acc_data['tree_id'] = tree_item_id
             if acc_data.get('selected_state', False):
                 items_to_reselect_in_ui.append(tree_item_id)
+            
+            real_index += 1  # 只对实际数据行递增序号
+        
+        # 恢复选中状态
         self.tree.selection_set(*items_to_reselect_in_ui)
 
     def update_batch_remarks_visibility(self):
@@ -1102,10 +1184,15 @@ class AccountManagerApp:
         self.filter_treeview()
 
     def select_all_toggle(self):
-        visible_item_ids = self.tree.get_children()
-        if not visible_item_ids: return
-        visible_accounts = [self.get_account_by_tree_id(item_id) for item_id in visible_item_ids if self.get_account_by_tree_id(item_id)]
+        visible_items = []
+        for item in self.tree.get_children():
+            item_values = self.tree.item(item, 'values')
+            if not all(v == "" for v in item_values):  # 排除空白行
+                visible_items.append(item)
+                
+        visible_accounts = [self.get_account_by_tree_id(item_id) for item_id in visible_items if self.get_account_by_tree_id(item_id)]
         if not visible_accounts: return
+        
         all_currently_selected = all(acc.get('selected_state', False) for acc in visible_accounts)
         new_state = not all_currently_selected
         for acc_obj in visible_accounts:
