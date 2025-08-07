@@ -5,9 +5,192 @@ import json
 import urllib.request
 import pypinyin
 from pypinyin import Style
+import locale
 
-version = "1.5"
+# 版本和GitHub信息
+version = "1.5.1"
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
+
+# 国际化支持
+LANGUAGES = {
+    'zh': {
+        'app_title': "账号管理系统 - v{version}",
+        'new_version': " [有新版本]",
+        'import_txt': "导入TXT",
+        'export_selected': "导出选中",
+        'manual_add': "手动添加",
+        'refresh': "刷新",
+        'search': "搜索:",
+        'show_available_only': "只显示可用",
+        'show_remarked_only': "只显示已备注",
+        'delete_selected': "删除选中",
+        'select_all_toggle': "全选/取消全选",
+        'batch_remark': "批量备注",
+        'github_label': "GitHub: ImLTHQ/SteamAccountManager",
+        'columns': {
+            'index': "序号",
+            'select': "选择",
+            'account': "账号",
+            'password': "密码",
+            'status': "状态",
+            'available_time': "可用时间",
+            'remarks': "备注",
+            'shortcut': "冷却时间"
+        },
+        'status_available': "可用",
+        'status_unavailable': "不可用",
+        'remarks_options': ["清空", "一级", "二级"],
+        'days': "天数:",
+        'hours': "小时:",
+        'confirm': "确定",
+        'cancel': "取消",
+        'input_error': "输入错误",
+        'invalid_datetime': "无效的日期时间: {error}",
+        'enter_accounts': "请输入账号和密码（每行一个，格式：账号----密码）:",
+        'modify_available_time': "修改可用时间",
+        'immediately_available': "立即可用",
+        'custom_days_hours': "自定义天数/小时",
+        'custom_remark': "自定义备注",
+        'enter_custom_remark': "请输入自定义备注:",
+        'import_success': "导入成功",
+        'imported_new_accounts': "成功导入 {count} 个新账号",
+        'import_no_new': "没有新的账号被导入（可能已存在或格式不正确）",
+        'import_error': "导入错误",
+        'import_failed': "导入文件失败: {error}",
+        'add_success': "添加成功",
+        'added_new_accounts': "成功添加 {count} 个新账号",
+        'add_no_new': "没有新的账号被添加（可能已存在）",
+        'save_failed': "保存失败",
+        'save_error': "保存数据失败: {error}",
+        'load_error': "加载错误",
+        'load_failed': "加载数据失败: {error}",
+        'delete_no_selected': "删除选中",
+        'delete_no_accounts': "没有选中的账号可删除",
+        'confirm_delete': "确认删除",
+        'confirm_delete_msg': "确定要删除选中的 {count} 个账号吗?",
+        'delete_success': "删除成功",
+        'deleted_accounts': "{count} 个账号已删除",
+        'export_no_selected': "导出选中",
+        'export_no_accounts': "没有选中的账号可导出",
+        'export_success': "导出成功",
+        'exported_accounts': "成功导出 {count} 个账号到 {path}",
+        'export_error': "导出错误",
+        'export_failed': "导出文件失败: {error}",
+        'batch_remark_success': "批量备注",
+        'batch_remark_msg': "已为 {count} 个账号设置备注为: {remark}",
+        # 时间单位（中文单复数相同）
+        'day': "天",
+        'days': "天",
+        'hour': "小时",
+        'hours': "小时",
+        'less_than_one_hour': "不足1小时",
+        # 快捷菜单时间选项
+        'shortcut_20h': "20小时",
+        'shortcut_3d': "3天",
+        'shortcut_7d': "7天",
+        'shortcut_14d': "14天",
+        'shortcut_31d': "31天",
+        'shortcut_45d': "45天",
+        'shortcut_181d': "181天"
+    },
+    'en': {
+        'app_title': "Account Management System - v{version}",
+        'new_version': " [New Version Available]",
+        'import_txt': "Import TXT",
+        'export_selected': "Export Selected",
+        'manual_add': "Add Manually",
+        'refresh': "Refresh",
+        'search': "Search:",
+        'show_available_only': "Show Available Only",
+        'show_remarked_only': "Show Remarked Only",
+        'delete_selected': "Delete Selected",
+        'select_all_toggle': "Select All/None",
+        'batch_remark': "Batch Remark",
+        'github_label': "GitHub: ImLTHQ/SteamAccountManager",
+        'columns': {
+            'index': "No.",
+            'select': "Select",
+            'account': "Account",
+            'password': "Password",
+            'status': "Status",
+            'available_time': "Available Time",
+            'remarks': "Remarks",
+            'shortcut': "Cooldown"
+        },
+        'status_available': "Available",
+        'status_unavailable': "Unavailable",
+        'remarks_options': ["Clear", "Level 1", "Level 2"],
+        'days': "Days:",
+        'hours': "Hours:",
+        'confirm': "OK",
+        'cancel': "Cancel",
+        'input_error': "Input Error",
+        'invalid_datetime': "Invalid date/time: {error}",
+        'enter_accounts': "Please enter accounts and passwords (one per line, format: account----password):",
+        'modify_available_time': "Modify Available Time",
+        'immediately_available': "Immediately Available",
+        'custom_days_hours': "Custom Days/Hours",
+        'custom_remark': "Custom Remark",
+        'enter_custom_remark': "Please enter custom remark:",
+        'import_success': "Import Successful",
+        'imported_new_accounts': "Successfully imported {count} new accounts",
+        'import_no_new': "No new accounts imported (may already exist or incorrect format)",
+        'import_error': "Import Error",
+        'import_failed': "Failed to import file: {error}",
+        'add_success': "Add Successful",
+        'added_new_accounts': "Successfully added {count} new accounts",
+        'add_no_new': "No new accounts added (may already exist)",
+        'save_failed': "Save Failed",
+        'save_error': "Failed to save data: {error}",
+        'load_error': "Load Error",
+        'load_failed': "Failed to load data: {error}",
+        'delete_no_selected': "Delete Selected",
+        'delete_no_accounts': "No selected accounts to delete",
+        'confirm_delete': "Confirm Delete",
+        'confirm_delete_msg': "Are you sure you want to delete {count} selected accounts?",
+        'delete_success': "Delete Successful",
+        'deleted_accounts': "{count} accounts have been deleted",
+        'export_no_selected': "Export Selected",
+        'export_no_accounts': "No selected accounts to export",
+        'export_success': "Export Successful",
+        'exported_accounts': "Successfully exported {count} accounts to {path}",
+        'export_error': "Export Error",
+        'export_failed': "Failed to export file: {error}",
+        'batch_remark_success': "Batch Remark",
+        'batch_remark_msg': "Set remark for {count} accounts to: {remark}",
+        # 时间单位（英文区分单复数）
+        'day': "day",
+        'days': "days",
+        'hour': "hour",
+        'hours': "hours",
+        'less_than_one_hour': "Less than 1 hour",
+        # 快捷菜单时间选项
+        'shortcut_20h': "20 hours",
+        'shortcut_3d': "3 days",
+        'shortcut_7d': "7 days",
+        'shortcut_14d': "14 days",
+        'shortcut_31d': "31 days",
+        'shortcut_45d': "45 days",
+        'shortcut_181d': "181 days"
+    }
+}
+
+# 检测系统语言
+def get_system_language():
+    try:
+        lang, _ = locale.getdefaultlocale()
+        if lang:
+            if lang.startswith('zh'):
+                return 'zh'
+            elif lang.startswith('en'):
+                return 'en'
+    except Exception:
+        pass
+    return 'en'  # 默认英语
+
+# 获取当前语言
+current_lang = get_system_language()
+lang = LANGUAGES[current_lang]
 
 def check_for_update():
     try:
@@ -15,8 +198,8 @@ def check_for_update():
             remote_version = response.read().decode('utf-8-sig').strip()
             if remote_version != version:
                 current_title = root.title()
-                if "[有新版本]" not in current_title:
-                    root.title(current_title + " [有新版本]")
+                if lang['new_version'] not in current_title:
+                    root.title(current_title + lang['new_version'])
     except Exception:
         pass
 
@@ -40,8 +223,8 @@ def get_pinyin_initial_abbr(text):
 
 class DaysHoursDialog(simpledialog.Dialog):
     def body(self, master):
-        tk.Label(master, text="天数:").grid(row=0, column=0, padx=5, pady=5)
-        tk.Label(master, text="小时:").grid(row=1, column=0, padx=5, pady=5)
+        tk.Label(master, text=lang['days']).grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(master, text=lang['hours']).grid(row=1, column=0, padx=5, pady=5)
         # 使用 StringVar 来允许空输入
         self.days_var = tk.StringVar(value="")
         self.hours_var = tk.StringVar(value="")
@@ -64,9 +247,9 @@ class DaysHoursDialog(simpledialog.Dialog):
 
     def buttonbox(self):
         box = tk.Frame(self)
-        w = tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE)
+        w = tk.Button(box, text=lang['confirm'], width=10, command=self.ok, default=tk.ACTIVE)
         w.pack(side=tk.LEFT, padx=5, pady=5)
-        w = tk.Button(box, text="取消", width=10, command=self.cancel)
+        w = tk.Button(box, text=lang['cancel'], width=10, command=self.cancel)
         w.pack(side=tk.LEFT, padx=5, pady=5)
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
@@ -95,19 +278,19 @@ class DateTimeDialog(simpledialog.Dialog):
         self.minute_var = tk.IntVar(value=minute)
         
         # 创建输入框
-        tk.Label(master, text="年:").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(master, text="Year:").grid(row=0, column=0, padx=5, pady=5)
         tk.Spinbox(master, from_=2000, to=2100, textvariable=self.year_var, width=5).grid(row=0, column=1, padx=5, pady=5)
         
-        tk.Label(master, text="月:").grid(row=0, column=2, padx=5, pady=5)
+        tk.Label(master, text="Month:").grid(row=0, column=2, padx=5, pady=5)
         tk.Spinbox(master, from_=1, to=12, textvariable=self.month_var, width=3).grid(row=0, column=3, padx=5, pady=5)
         
-        tk.Label(master, text="日:").grid(row=0, column=4, padx=5, pady=5)
+        tk.Label(master, text="Day:").grid(row=0, column=4, padx=5, pady=5)
         tk.Spinbox(master, from_=1, to=31, textvariable=self.day_var, width=3).grid(row=0, column=5, padx=5, pady=5)
         
-        tk.Label(master, text="时:").grid(row=1, column=0, padx=5, pady=5)
+        tk.Label(master, text="Hour:").grid(row=1, column=0, padx=5, pady=5)
         tk.Spinbox(master, from_=0, to=23, textvariable=self.hour_var, width=3).grid(row=1, column=1, padx=5, pady=5)
         
-        tk.Label(master, text="分:").grid(row=1, column=2, padx=5, pady=5)
+        tk.Label(master, text="Minute:").grid(row=1, column=2, padx=5, pady=5)
         tk.Spinbox(master, from_=0, to=59, textvariable=self.minute_var, width=3).grid(row=1, column=3, padx=5, pady=5)
         
         return master
@@ -122,19 +305,19 @@ class DateTimeDialog(simpledialog.Dialog):
                 self.minute_var.get()
             )
         except ValueError as e:
-            messagebox.showerror("输入错误", f"无效的日期时间: {e}")
+            messagebox.showerror(lang['input_error'], lang['invalid_datetime'].format(error=e))
             self.result = None
 
     def buttonbox(self):
         # 创建按钮框
         box = tk.Frame(self)
         
-        # 确定按钮（替换原来的OK按钮）
-        w = tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE)
+        # 确定按钮
+        w = tk.Button(box, text=lang['confirm'], width=10, command=self.ok, default=tk.ACTIVE)
         w.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # 取消按钮（替换原来的Cancel按钮）
-        w = tk.Button(box, text="取消", width=10, command=self.cancel)
+        # 取消按钮
+        w = tk.Button(box, text=lang['cancel'], width=10, command=self.cancel)
         w.pack(side=tk.LEFT, padx=5, pady=5)
         
         # 绑定回车键和ESC键
@@ -145,7 +328,7 @@ class DateTimeDialog(simpledialog.Dialog):
 
 class ManualAddAccountDialog(simpledialog.Dialog):
     def body(self, master):
-        tk.Label(master, text="请输入账号和密码（每行一个，格式：账号----密码）:").pack(padx=10, pady=5)
+        tk.Label(master, text=lang['enter_accounts']).pack(padx=10, pady=5)
         self.text_widget = tk.Text(master, width=50, height=10)
         self.text_widget.pack(padx=10, pady=5)
         return self.text_widget
@@ -167,9 +350,9 @@ class ManualAddAccountDialog(simpledialog.Dialog):
     def buttonbox(self):
         # 重写buttonbox方法，移除回车键绑定
         box = tk.Frame(self)
-        w = tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE)
+        w = tk.Button(box, text=lang['confirm'], width=10, command=self.ok, default=tk.ACTIVE)
         w.pack(side=tk.LEFT, padx=5, pady=5)
-        w = tk.Button(box, text="取消", width=10, command=self.cancel)
+        w = tk.Button(box, text=lang['cancel'], width=10, command=self.cancel)
         w.pack(side=tk.LEFT, padx=5, pady=5)
         # 只保留ESC键绑定，移除回车键绑定
         self.bind("<Escape>", self.cancel)
@@ -178,27 +361,23 @@ class ManualAddAccountDialog(simpledialog.Dialog):
 class AccountManagerApp:
     # 添加"序号"列作为第一列
     COLUMNS = ("index", "select", "account", "password", "status", "available_time", "remarks", "shortcut")
-    HEADINGS_MAP = {
-        "index": "序号", "select": "选择", "account": "账号", "password": "密码",
-        "status": "状态", "available_time": "可用时间", "remarks": "备注", "shortcut": "冷却时间"
-    }
     COLUMN_WIDTHS = {
-        "index": 25, "select": 25, "account": 100, "password": 100, "status": 50,
-        "available_time": 100, "remarks": 100, "shortcut": 100
+        "index": 25, "select": 50, "account": 100, "password": 100, "status": 70,
+        "available_time": 130, "remarks": 100, "shortcut": 100
     }
     COLUMN_ANCHORS = {
         "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
         "remarks": tk.CENTER, "shortcut": tk.CENTER
     }
-    REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2}
-    REMARKS_FROM_JSON = {0: "", 1: "一级", 2: "二级"}
+    REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2, "Level 1": 1, "Level 2": 2}
+    REMARKS_FROM_JSON = {0: "", 1: lang['remarks_options'][1], 2: lang['remarks_options'][2]}
     # 排序箭头常量
     SORT_ASC = " ↑"  # 升序箭头
     SORT_DESC = " ↓" # 降序箭头
 
     def __init__(self, root_window):
         self.root = root_window
-        self.root.title("账号管理系统 - v" + version)
+        self.root.title(lang['app_title'].format(version=version))
         self.root.geometry("1000x600")
         self.accounts_data = []
         self.original_data = []  # 保存原始数据用于恢复未排序状态
@@ -217,24 +396,24 @@ class AccountManagerApp:
         style.map('Treeview',
                   background=[('selected', 'lightgreen')],
                   foreground=[('selected', 'black')])
-        self.tree.tag_configure("可用", background="#e0e0e0", foreground="black")
-        self.tree.tag_configure("不可用", background="salmon")
+        self.tree.tag_configure(lang['status_available'], background="#e0e0e0", foreground="black")
+        self.tree.tag_configure(lang['status_unavailable'], background="salmon")
 
     def setup_ui(self):
         top_frame = ttk.Frame(self.root, padding="10")
         top_frame.pack(fill=tk.X)
         buttons_data = [
-            ("导入TXT", self.import_txt),
-            ("导出选中", self.export_txt),
-            ("手动添加", self.manual_add_account_dialog),
-            ("刷新", self.refresh_treeview),
+            (lang['import_txt'], self.import_txt),
+            (lang['export_selected'], self.export_txt),
+            (lang['manual_add'], self.manual_add_account_dialog),
+            (lang['refresh'], self.refresh_treeview),
         ]
         for text, command in buttons_data:
             ttk.Button(top_frame, text=text, command=command).pack(side=tk.LEFT, padx=5)
         # 在 top_frame 的右侧添加搜索框
         search_box_frame = ttk.Frame(top_frame)
         search_box_frame.pack(side=tk.RIGHT, padx=5)
-        ttk.Label(search_box_frame, text="搜索:").pack(side=tk.LEFT)
+        ttk.Label(search_box_frame, text=lang['search']).pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
         search_entry = ttk.Entry(search_box_frame, textvariable=self.search_var, width=20)
         search_entry.pack(side=tk.LEFT, padx=5)
@@ -243,15 +422,15 @@ class AccountManagerApp:
         search_frame = ttk.Frame(self.root, padding="10")
         search_frame.pack(fill=tk.X)
         self.show_available_only_var = tk.BooleanVar()
-        ttk.Checkbutton(search_frame, text="只显示可用", variable=self.show_available_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(search_frame, text=lang['show_available_only'], variable=self.show_available_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
         # 只显示已备注
         self.show_remarked_only_var = tk.BooleanVar()
-        ttk.Checkbutton(search_frame, text="只显示已备注", variable=self.show_remarked_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(search_frame, text=lang['show_remarked_only'], variable=self.show_remarked_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
         # 删除按钮先不显示
-        self.delete_btn = ttk.Button(search_frame, text="删除选中", command=self.delete_selected)
-        ttk.Button(search_frame, text="全选/取消全选", command=self.select_all_toggle).pack(side=tk.RIGHT, padx=5)
+        self.delete_btn = ttk.Button(search_frame, text=lang['delete_selected'], command=self.delete_selected)
+        ttk.Button(search_frame, text=lang['select_all_toggle'], command=self.select_all_toggle).pack(side=tk.RIGHT, padx=5)
         # 默认不显示删除按钮
         self.delete_btn.pack_forget()
 
@@ -260,24 +439,25 @@ class AccountManagerApp:
         self.batch_remarks_combo = ttk.Combobox(
             search_frame, textvariable=self.batch_remarks_var, state="normal", width=8
         )
-        self.batch_remarks_combo['values'] = ("清空", "一级", "二级")
+        self.batch_remarks_combo['values'] = lang['remarks_options']
         self.batch_remarks_combo.set("")
-        self.batch_remarks_btn = ttk.Button(search_frame, text="批量备注", command=self.batch_set_remarks)
+        self.batch_remarks_btn = ttk.Button(search_frame, text=lang['batch_remark'], command=self.batch_set_remarks)
         self.batch_remarks_combo.pack_forget()
         self.batch_remarks_btn.pack_forget()
+        
         tree_frame = ttk.Frame(self.root, padding="10")
         tree_frame.pack(expand=True, fill=tk.BOTH)
         self.tree = ttk.Treeview(tree_frame, columns=self.COLUMNS, show="headings")
         for col_id in self.COLUMNS:
-            self.tree.heading(col_id, text=self.HEADINGS_MAP[col_id])
+            self.tree.heading(col_id, text=lang['columns'][col_id])
             self.tree.column(col_id, width=self.COLUMN_WIDTHS[col_id], anchor=self.COLUMN_ANCHORS.get(col_id, tk.W))
-        # 为下列列增加点击排序功能（备注、冷却时间、账号、状态、可用时间）
-        self.tree.heading("remarks", text=self.HEADINGS_MAP["remarks"], command=lambda: self.sort_by_column("remarks"))
-        self.tree.heading("shortcut", text=self.HEADINGS_MAP["shortcut"], command=lambda: self.sort_by_column("shortcut"))
-        self.tree.heading("account", text=self.HEADINGS_MAP["account"], command=lambda: self.sort_by_column("account"))
-        self.tree.heading("status", text=self.HEADINGS_MAP["status"], command=lambda: self.sort_by_column("status"))
+        # 为下列列增加点击排序功能
+        self.tree.heading("remarks", text=lang['columns']["remarks"], command=lambda: self.sort_by_column("remarks"))
+        self.tree.heading("shortcut", text=lang['columns']["shortcut"], command=lambda: self.sort_by_column("shortcut"))
+        self.tree.heading("account", text=lang['columns']["account"], command=lambda: self.sort_by_column("account"))
+        self.tree.heading("status", text=lang['columns']["status"], command=lambda: self.sort_by_column("status"))
         # 添加可用时间列的排序功能
-        self.tree.heading("available_time", text=self.HEADINGS_MAP["available_time"], command=lambda: self.sort_by_column("available_time"))
+        self.tree.heading("available_time", text=lang['columns']["available_time"], command=lambda: self.sort_by_column("available_time"))
         self.tree.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscroll=scrollbar.set)
@@ -288,7 +468,7 @@ class AccountManagerApp:
         self.tree.bind("<Button-3>", self.on_tree_right_click)
         self.tree.bind("<Double-1>", self.on_tree_double_click)
         # 添加Github信息标签
-        github_label = ttk.Label(self.root, text="GitHub: ImLTHQ/SteamAccountManager", font=("Arial", 10))
+        github_label = ttk.Label(self.root, text=lang['github_label'], font=("Arial", 10))
         github_label.pack(side=tk.RIGHT)
 
     def sort_by_column(self, column):
@@ -297,7 +477,7 @@ class AccountManagerApp:
         
         # 清除所有表头的箭头
         for col_id in self.COLUMNS:
-            original_text = self.HEADINGS_MAP[col_id]
+            original_text = lang['columns'][col_id]
             current_text = self.tree.heading(col_id, "text")
             # 如果当前文本包含箭头，则移除
             if current_text.endswith(self.SORT_ASC) or current_text.endswith(self.SORT_DESC):
@@ -309,14 +489,14 @@ class AccountManagerApp:
             new_state = False
             arrow = self.SORT_ASC
             self.sorting_state[column] = new_state
-            self.tree.heading(column, text=self.HEADINGS_MAP[column] + arrow)
+            self.tree.heading(column, text=lang['columns'][column] + arrow)
             self._sort_data(column, new_state)
         elif current_state is False:
             # 从升序切换到降序
             new_state = True
             arrow = self.SORT_DESC
             self.sorting_state[column] = new_state
-            self.tree.heading(column, text=self.HEADINGS_MAP[column] + arrow)
+            self.tree.heading(column, text=lang['columns'][column] + arrow)
             self._sort_data(column, new_state)
         else:
             # 从降序切换到未排序（恢复原始顺序）
@@ -347,7 +527,7 @@ class AccountManagerApp:
             # 可用排在前面
             def key_func(acc):
                 status = acc.get("status", "")
-                return 0 if status == "可用" else 1
+                return 0 if status == lang['status_available'] else 1
         elif column == "available_time":
             # 按可用时间排序
             def key_func(acc):
@@ -368,7 +548,7 @@ class AccountManagerApp:
         # 重置所有排序状态
         # 清除所有表头的箭头
         for col_id in self.COLUMNS:
-            original_text = self.HEADINGS_MAP[col_id]
+            original_text = lang['columns'][col_id]
             current_text = self.tree.heading(col_id, "text")
             if current_text.endswith(self.SORT_ASC) or current_text.endswith(self.SORT_DESC):
                 self.tree.heading(col_id, text=original_text)
@@ -427,7 +607,7 @@ class AccountManagerApp:
         # 移除箭头后再比较
         if header_text.endswith(self.SORT_ASC) or header_text.endswith(self.SORT_DESC):
             header_text = header_text[:-2]
-        if header_text in ("账号", "密码"):
+        if header_text in (lang['columns']['account'], lang['columns']['password']):
             self.root.after(150, lambda: self._handle_single_click_copy(item_id, header_text))
 
     def _handle_single_click_copy(self, item_id, column_header_text):
@@ -435,9 +615,9 @@ class AccountManagerApp:
             return
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
-        if column_header_text == "账号":
+        if column_header_text == lang['columns']['account']:
             content_to_copy = account_obj['account']
-        elif column_header_text == "密码":
+        elif column_header_text == lang['columns']['password']:
             content_to_copy = account_obj['password']
         else:
             return
@@ -484,7 +664,7 @@ class AccountManagerApp:
         if not item_id: return
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
-        if column_header_text == "冷却时间":
+        if column_header_text == lang['columns']['shortcut']:
             pass
 
     def on_tree_right_click(self, event):
@@ -499,21 +679,21 @@ class AccountManagerApp:
         # 移除箭头后再比较
         if column_header_text.endswith(self.SORT_ASC) or column_header_text.endswith(self.SORT_DESC):
             column_header_text = column_header_text[:-2]
-        if column_header_text not in ("备注", "冷却时间", "可用时间") and not (event.state & 0x0004 or event.state & 0x0008):
+        if column_header_text not in (lang['columns']['remarks'], lang['columns']['shortcut'], lang['columns']['available_time']) and not (event.state & 0x0004 or event.state & 0x0008):
             for acc in self.accounts_data:
                 self._set_account_selection_state(acc, False)
             self._set_account_selection_state(account_obj, True)
-        if column_header_text == "备注":
+        if column_header_text == lang['columns']['remarks']:
             self._show_remarks_menu(event, account_obj)
-        elif column_header_text == "冷却时间":
+        elif column_header_text == lang['columns']['shortcut']:
             self._show_shortcut_menu(event, account_obj)
-        elif column_header_text == "可用时间":
+        elif column_header_text == lang['columns']['available_time']:
             self._show_available_time_menu(event, account_obj)
-        elif column_header_text == "账号":
+        elif column_header_text == lang['columns']['account']:
             self.root.clipboard_clear()
             self.root.clipboard_append(account_obj['account'])
             self.root.update()
-        elif column_header_text == "密码":
+        elif column_header_text == lang['columns']['password']:
             self.root.clipboard_clear()
             self.root.clipboard_append(account_obj['password'])
             self.root.update()
@@ -521,7 +701,7 @@ class AccountManagerApp:
     def _show_available_time_menu(self, event, account_obj):
         # 显示修改可用时间的菜单
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="修改可用时间", command=lambda: self._modify_available_time(account_obj))
+        menu.add_command(label=lang['modify_available_time'], command=lambda: self._modify_available_time(account_obj))
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -537,7 +717,7 @@ class AccountManagerApp:
             current_time = datetime.datetime.now()
         
         # 显示日期时间对话框
-        dlg = DateTimeDialog(self.root, "修改可用时间", current_time)
+        dlg = DateTimeDialog(self.root, lang['modify_available_time'], current_time)
         if dlg.result:
             # 更新可用时间
             self._update_account_status_and_time(account_obj, dlg.result)
@@ -546,17 +726,17 @@ class AccountManagerApp:
 
     def _show_shortcut_menu(self, event, account_obj):
         shortcut_menu = tk.Menu(self.root, tearoff=0)
-        shortcut_menu.add_command(label="立即可用", command=lambda: self.apply_shortcut(account_obj, "reset"))
+        shortcut_menu.add_command(label=lang['immediately_available'], command=lambda: self.apply_shortcut(account_obj, "reset"))
         shortcut_menu.add_separator()
-        shortcut_menu.add_command(label="20小时", command=lambda: self.apply_shortcut(account_obj, "delta", hours=20))
-        shortcut_menu.add_command(label="3天", command=lambda: self.apply_shortcut(account_obj, "delta", days=3))
-        shortcut_menu.add_command(label="7天", command=lambda: self.apply_shortcut(account_obj, "delta", days=7))
-        shortcut_menu.add_command(label="14天", command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
-        shortcut_menu.add_command(label="31天", command=lambda: self.apply_shortcut(account_obj, "delta", days=31))
-        shortcut_menu.add_command(label="45天", command=lambda: self.apply_shortcut(account_obj, "delta", days=45))
-        shortcut_menu.add_command(label="181天", command=lambda: self.apply_shortcut(account_obj, "delta", days=181))
+        shortcut_menu.add_command(label=lang['shortcut_20h'], command=lambda: self.apply_shortcut(account_obj, "delta", hours=20))
+        shortcut_menu.add_command(label=lang['shortcut_3d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=3))
+        shortcut_menu.add_command(label=lang['shortcut_7d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=7))
+        shortcut_menu.add_command(label=lang['shortcut_14d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
+        shortcut_menu.add_command(label=lang['shortcut_31d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=31))
+        shortcut_menu.add_command(label=lang['shortcut_45d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=45))
+        shortcut_menu.add_command(label=lang['shortcut_181d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=181))
         shortcut_menu.add_separator()
-        shortcut_menu.add_command(label="自定义天数/小时", command=lambda: self._custom_shortcut(account_obj))
+        shortcut_menu.add_command(label=lang['custom_days_hours'], command=lambda: self._custom_shortcut(account_obj))
         try:
             shortcut_menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -564,7 +744,7 @@ class AccountManagerApp:
 
     def _custom_shortcut(self, account_obj):
         # 使用自定义对话框输入天数和小时
-        dlg = DaysHoursDialog(self.root, title="自定义天数/小时")
+        dlg = DaysHoursDialog(self.root, title=lang['custom_days_hours'])
         if dlg.result is None:
             return
         custom_days, custom_hours = dlg.result
@@ -576,12 +756,12 @@ class AccountManagerApp:
     def _show_remarks_menu(self, event, account_obj):
         remarks_menu = tk.Menu(self.root, tearoff=0)
 
-        remarks_menu.add_command(label="清空", command=lambda: self.set_remarks(account_obj, ""))
+        remarks_menu.add_command(label=lang['remarks_options'][0], command=lambda: self.set_remarks(account_obj, ""))
         remarks_menu.add_separator()
-        remarks_menu.add_command(label="一级", command=lambda: self.set_remarks(account_obj, "一级"))
-        remarks_menu.add_command(label="二级", command=lambda: self.set_remarks(account_obj, "二级"))
+        remarks_menu.add_command(label=lang['remarks_options'][1], command=lambda: self.set_remarks(account_obj, lang['remarks_options'][1]))
+        remarks_menu.add_command(label=lang['remarks_options'][2], command=lambda: self.set_remarks(account_obj, lang['remarks_options'][2]))
         remarks_menu.add_separator()
-        remarks_menu.add_command(label="自定义备注", command=lambda: self._custom_remarks(account_obj))
+        remarks_menu.add_command(label=lang['custom_remark'], command=lambda: self._custom_remarks(account_obj))
         try:
             remarks_menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -591,9 +771,9 @@ class AccountManagerApp:
         # 自定义弹窗输入备注
         class CustomRemarkDialog(simpledialog.Dialog):
             def body(self, master):
-                tk.Label(master, text="请输入自定义备注:").pack(padx=10, pady=10)
+                tk.Label(master, text=lang['enter_custom_remark']).pack(padx=10, pady=10)
                 self.remark_var = tk.StringVar()
-                self.remark_entry = tk.Entry(master, textvariable=self.remark_var, width=30, font=("Arial", 10))  # 缩小宽度
+                self.remark_entry = tk.Entry(master, textvariable=self.remark_var, width=30, font=("Arial", 10))
                 self.remark_entry.pack(padx=10, pady=5)
                 return self.remark_entry
 
@@ -602,13 +782,13 @@ class AccountManagerApp:
 
             def buttonbox(self):
                 box = tk.Frame(self)
-                tk.Button(box, text="确定", width=10, command=self.ok, default=tk.ACTIVE, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
-                tk.Button(box, text="取消", width=10, command=self.cancel, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
+                tk.Button(box, text=lang['confirm'], width=10, command=self.ok, default=tk.ACTIVE, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
+                tk.Button(box, text=lang['cancel'], width=10, command=self.cancel, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
                 self.bind("<Return>", self.ok)
                 self.bind("<Escape>", self.cancel)
                 box.pack()
 
-        dlg = CustomRemarkDialog(self.root, title="自定义备注")
+        dlg = CustomRemarkDialog(self.root, title=lang['custom_remark'])
         if dlg.result:
             self.set_remarks(account_obj, dlg.result)
 
@@ -631,7 +811,7 @@ class AccountManagerApp:
         else:
             available_dt = new_available_time_dt
         account_obj['available_time'] = available_dt.strftime("%Y-%m-%d %H:%M")
-        account_obj['status'] = "可用" if available_dt <= datetime.datetime.now() else "不可用"
+        account_obj['status'] = lang['status_available'] if available_dt <= datetime.datetime.now() else lang['status_unavailable']
         
         # 更新原始数据中的时间和状态
         for orig_acc in self.original_data:
@@ -667,12 +847,20 @@ class AccountManagerApp:
                 days = time_left.days
                 seconds_in_hour = 3600
                 hours = time_left.seconds // seconds_in_hour
+                
+                # 根据语言和数量选择正确的单复数形式
+                day_unit = lang['day'] if days == 1 else lang['days']
+                hour_unit = lang['hour'] if hours == 1 else lang['hours']
+                
                 if days > 0:
-                    display_shortcut = f"{days}天{hours}小时"
+                    if hours > 0:
+                        display_shortcut = f"{days} {day_unit} {hours} {hour_unit}"
+                    else:
+                        display_shortcut = f"{days} {day_unit}"
                 elif hours > 0:
-                    display_shortcut = f"{hours}小时"
+                    display_shortcut = f"{hours} {hour_unit}"
                 else:
-                    display_shortcut = "不足1小时"
+                    display_shortcut = lang['less_than_one_hour']
         except (ValueError, TypeError):
             display_shortcut = ""
             
@@ -713,12 +901,20 @@ class AccountManagerApp:
                     days = time_left.days
                     seconds_in_hour = 3600
                     hours = time_left.seconds // seconds_in_hour
+                    
+                    # 根据语言和数量选择正确的单复数形式
+                    day_unit = lang['day'] if days == 1 else lang['days']
+                    hour_unit = lang['hour'] if hours == 1 else lang['hours']
+                    
                     if days > 0:
-                        display_shortcut = f"{days}天{hours}小时"
+                        if hours > 0:
+                            display_shortcut = f"{days} {day_unit} {hours} {hour_unit}"
+                        else:
+                            display_shortcut = f"{days} {day_unit}"
                     elif hours > 0:
-                        display_shortcut = f"{hours}小时"
+                        display_shortcut = f"{hours} {hour_unit}"
                     else:
-                        display_shortcut = "不足1小时"
+                        display_shortcut = lang['less_than_one_hour']
             except (ValueError, TypeError):
                 display_shortcut = ""
             tree_item_id = self.tree.insert("", tk.END, values=(
@@ -748,7 +944,7 @@ class AccountManagerApp:
             self.delete_btn.pack_forget()
         # 更新"选择"列的表头，显示选中的数量
         count = len(selected_accounts)
-        header_text = f"选择:{count}" if count > 0 else "选择"
+        header_text = f"{lang['columns']['select']}:{count}" if count > 0 else lang['columns']['select']
         self.tree.heading("select", text=header_text)
 
     def filter_treeview(self):
@@ -759,7 +955,7 @@ class AccountManagerApp:
         filtered_data = []
         for acc in self.accounts_data:
             self._update_account_status_and_time(acc)
-            match_status = (not show_available or (show_available and acc['status'] == "可用"))
+            match_status = (not show_available or (show_available and acc['status'] == lang['status_available']))
             match_remark = (not show_remarked or (show_remarked and acc.get('remarks', '').strip()))
         
             # 修改搜索匹配逻辑：同时检查账号、密码和备注
@@ -778,7 +974,11 @@ class AccountManagerApp:
 
     def sort_by_remarks(self):
         self.remarks_sort_reverse = not getattr(self, "remarks_sort_reverse", False)
-        remarks_order = {"": 0, "一级": 1, "二级": 2}
+        remarks_order = {
+            "": 0, 
+            lang['remarks_options'][1]: 1, 
+            lang['remarks_options'][2]: 2
+        }
         self.accounts_data.sort(
             key=lambda acc: remarks_order.get(acc.get("remarks", ""), 0),
             reverse=self.remarks_sort_reverse
@@ -803,7 +1003,7 @@ class AccountManagerApp:
 
     def import_txt(self):
         filepath = filedialog.askopenfilename(
-            title="导入TXT文件",
+            title=lang['import_txt'],
             filetypes=(("Text files", "*.txt"), ("All files", "*.*")),
             parent=self.root
         )
@@ -822,14 +1022,14 @@ class AccountManagerApp:
                                 if self._add_new_account_entry(account, password):
                                     new_accounts_count += 1
             if new_accounts_count > 0:
-                messagebox.showinfo("导入成功", f"成功导入 {new_accounts_count} 个新账号", parent=self.root)
+                messagebox.showinfo(lang['import_success'], lang['imported_new_accounts'].format(count=new_accounts_count), parent=self.root)
                 self.filter_treeview()
                 self.save_data()
             else:
-                messagebox.showinfo("导入提示", "没有新的账号被导入（可能已存在或格式不正确）", parent=self.root)
+                messagebox.showinfo(lang['import_txt'], lang['import_no_new'], parent=self.root)
                 self.filter_treeview()
         except Exception as e:
-            messagebox.showerror("导入错误", f"导入文件失败: {e}", parent=self.root)
+            messagebox.showerror(lang['import_error'], lang['import_failed'].format(error=e), parent=self.root)
 
     def manual_add_account_dialog(self):
         dialog = ManualAddAccountDialog(self.root)
@@ -840,10 +1040,10 @@ class AccountManagerApp:
                 if self._add_new_account_entry(account, password):
                     new_accounts_count += 1
             if new_accounts_count > 0:
-                messagebox.showinfo("添加成功", f"成功添加 {new_accounts_count} 个新账号", parent=self.root)
+                messagebox.showinfo(lang['add_success'], lang['added_new_accounts'].format(count=new_accounts_count), parent=self.root)
                 self.save_data()
             elif dialog.new_accounts_data:
-                messagebox.showinfo("添加提示", "没有新的账号被添加（可能已存在）", parent=self.root)
+                messagebox.showinfo(lang['manual_add'], lang['add_no_new'], parent=self.root)
             self.filter_treeview()
 
     def save_data(self):
@@ -863,7 +1063,7 @@ class AccountManagerApp:
             with open(self.data_file, 'w', encoding='utf-8') as f:
                 json.dump(data_to_save, f, ensure_ascii=False, indent=4)
         except Exception as e:
-            messagebox.showerror("保存失败", f"保存数据失败: {e}", parent=self.root)
+            messagebox.showerror(lang['save_failed'], lang['save_error'].format(error=e), parent=self.root)
 
     def load_data(self):
         try:
@@ -890,7 +1090,7 @@ class AccountManagerApp:
             self.accounts_data = []
             self.original_data = []
         except Exception as e:
-            messagebox.showerror("加载错误", f"加载数据失败: {e}", parent=self.root)
+            messagebox.showerror(lang['load_error'], lang['load_failed'].format(error=e), parent=self.root)
             self.accounts_data = []
             self.original_data = []
         self.filter_treeview()
@@ -918,9 +1118,9 @@ class AccountManagerApp:
             acc['account'] for acc in self.accounts_data if acc.get('selected_state', False)
         ]
         if not selected_accounts_to_delete:
-            messagebox.showinfo("删除选中", "没有选中的账号可删除", parent=self.root)
+            messagebox.showinfo(lang['delete_no_selected'], lang['delete_no_accounts'], parent=self.root)
             return
-        if messagebox.askyesno("确认删除", f"确定要删除选中的 {len(selected_accounts_to_delete)} 个账号吗?", parent=self.root):
+        if messagebox.askyesno(lang['confirm_delete'], lang['confirm_delete_msg'].format(count=len(selected_accounts_to_delete)), parent=self.root):
             # 从当前数据和原始数据中都删除
             self.accounts_data = [
                 acc for acc in self.accounts_data
@@ -932,18 +1132,18 @@ class AccountManagerApp:
             ]
             self.filter_treeview()
             self.save_data()
-            messagebox.showinfo("删除成功", f"{len(selected_accounts_to_delete)} 个账号已删除", parent=self.root)
+            messagebox.showinfo(lang['delete_success'], lang['deleted_accounts'].format(count=len(selected_accounts_to_delete)), parent=self.root)
 
     def export_txt(self):
         selected_accounts = [
             acc for acc in self.accounts_data if acc.get('selected_state', False)
         ]
         if not selected_accounts:
-            messagebox.showinfo("导出选中", "没有选中的账号可导出", parent=self.root)
+            messagebox.showinfo(lang['export_no_selected'], lang['export_no_accounts'], parent=self.root)
             return
         
         filepath = filedialog.asksaveasfilename(
-            title="导出选中账号",
+            title=lang['export_selected'],
             defaultextension=".txt",
             filetypes=(("Text files", "*.txt"), ("All files", "*.*")),
             parent=self.root
@@ -956,9 +1156,9 @@ class AccountManagerApp:
                 for acc in selected_accounts:
                     line = f"{acc['account']}----{acc['password']}\n"
                     f.write(line)
-            messagebox.showinfo("导出成功", f"成功导出 {len(selected_accounts)} 个账号到 {filepath}", parent=self.root)
+            messagebox.showinfo(lang['export_success'], lang['exported_accounts'].format(count=len(selected_accounts), path=filepath), parent=self.root)
         except Exception as e:
-            messagebox.showerror("导出错误", f"导出文件失败: {e}", parent=self.root)
+            messagebox.showerror(lang['export_error'], lang['export_failed'].format(error=e), parent=self.root)
 
     def batch_set_remarks(self):
         selected_accounts = [
@@ -968,14 +1168,14 @@ class AccountManagerApp:
             return
             
         remark_text = self.batch_remarks_var.get()
-        if remark_text == "清空":
+        if remark_text == lang['remarks_options'][0]:
             remark_text = ""
             
         for acc in selected_accounts:
             self.set_remarks(acc, remark_text)
         
         self.batch_remarks_var.set("")
-        messagebox.showinfo("批量备注", f"已为 {len(selected_accounts)} 个账号设置备注为: {remark_text}", parent=self.root)
+        messagebox.showinfo(lang['batch_remark_success'], lang['batch_remark_msg'].format(count=len(selected_accounts), remark=remark_text), parent=self.root)
 
 if __name__ == '__main__':
     root = tk.Tk()
