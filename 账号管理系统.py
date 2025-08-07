@@ -94,7 +94,7 @@ LANGUAGES = {
         'shortcut_181d': "181天"
     },
     'en': {
-        'app_title': "Account Management System - v{version}",
+        'app_title': "Steam Account Manager - v{version}",
         'new_version': " [New Version Available]",
         'import_txt': "Import TXT",
         'export_selected': "Export Selected",
