@@ -10,7 +10,7 @@ def get_system_language():
         if lang.startswith('Chinese'):
             return 'Chinese'
         else:
-            return 'en'
+            return 'English'
 
 github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 def check_for_update(root, title, lang, version):
