@@ -64,10 +64,9 @@ LANGUAGES = {
         'export_failed': "导出文件失败: {error}",
         'batch_remark_success': "批量备注",
         'batch_remark_msg': "已为 {count} 个账号设置备注为: {remark}",
-        # 时间单位（中文单复数相同）
         'day': "天",
-        'days': "天",
         'hour': "小时",
+        'days': "天",
         'hours': "小时",
         'less_than_one_hour': "不足1小时",
 
@@ -77,7 +76,13 @@ LANGUAGES = {
         'shortcut_14d': "14天",
         'shortcut_31d': "31天",
         'shortcut_45d': "45天",
-        'shortcut_181d': "181天"
+        'shortcut_181d': "181天",
+
+        '_year': "年",
+        '_month': "月",
+        '_day': "日",
+        '_hour': "时",
+        '_minute': "分",
     },
     'English': {
         'app_title': "Steam Account Manager - v{version}",
@@ -144,10 +149,9 @@ LANGUAGES = {
         'export_failed': "Failed to export file: {error}",
         'batch_remark_success': "Batch Remark",
         'batch_remark_msg': "Set remark for {count} accounts to: {remark}",
-        # 时间单位（英文区分单复数）
         'day': "day",
-        'days': "days",
         'hour': "hour",
+        'days': "days",
         'hours': "hours",
         'less_than_one_hour': "Less than 1 hour",
 
@@ -157,6 +161,12 @@ LANGUAGES = {
         'shortcut_14d': "14 days",
         'shortcut_31d': "31 days",
         'shortcut_45d': "45 days",
-        'shortcut_181d': "181 days"
+        'shortcut_181d': "181 days",
+
+        '_year': "Year",
+        '_month': "Month",
+        '_day': "Day",
+        '_hour': "Hour",
+        '_minute': "Minute",
     }
 }

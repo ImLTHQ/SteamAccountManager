@@ -68,19 +68,19 @@ class DateTimeDialog(simpledialog.Dialog):
         self.minute_var = tk.IntVar(value=minute)
         
         # 创建输入框
-        tk.Label(master, text="Year:").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(master, text=lang['_year'] + ":").grid(row=0, column=0, padx=5, pady=5)
         tk.Spinbox(master, from_=2000, to=2100, textvariable=self.year_var, width=5).grid(row=0, column=1, padx=5, pady=5)
         
-        tk.Label(master, text="Month:").grid(row=0, column=2, padx=5, pady=5)
+        tk.Label(master, text=lang['_month'] + ":").grid(row=0, column=2, padx=5, pady=5)
         tk.Spinbox(master, from_=1, to=12, textvariable=self.month_var, width=3).grid(row=0, column=3, padx=5, pady=5)
         
-        tk.Label(master, text="Day:").grid(row=0, column=4, padx=5, pady=5)
+        tk.Label(master, text=lang['_day'] + ":").grid(row=0, column=4, padx=5, pady=5)
         tk.Spinbox(master, from_=1, to=31, textvariable=self.day_var, width=3).grid(row=0, column=5, padx=5, pady=5)
         
-        tk.Label(master, text="Hour:").grid(row=1, column=0, padx=5, pady=5)
+        tk.Label(master, text=lang['_hour'] + ":").grid(row=1, column=0, padx=5, pady=5)
         tk.Spinbox(master, from_=0, to=23, textvariable=self.hour_var, width=3).grid(row=1, column=1, padx=5, pady=5)
         
-        tk.Label(master, text="Minute:").grid(row=1, column=2, padx=5, pady=5)
+        tk.Label(master, text=lang['_minute'] + ":").grid(row=1, column=2, padx=5, pady=5)
         tk.Spinbox(master, from_=0, to=59, textvariable=self.minute_var, width=3).grid(row=1, column=3, padx=5, pady=5)
         
         return master
