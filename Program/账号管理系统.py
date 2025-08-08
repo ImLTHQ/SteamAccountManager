@@ -7,7 +7,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, ManualAddAccountDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.5.4"
+version = "1.5.5"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -728,6 +728,10 @@ class AccountManagerApp:
         self.filter_treeview()
 
     def _add_new_account_entry(self, account, password):
+        # 检查密码中是否包含"----"，如果有则移除其及后面的字符
+        if "----" in password:
+            password = password.split("----")[0].strip()  # 分割后取前面部分并去除首尾空格
+    
         # 只检查账号是否已存在，不考虑密码
         if not any(acc['account'] == account for acc in self.accounts_data):
             default_available_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
