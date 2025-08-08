@@ -6,9 +6,7 @@ import json
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 from language import LANGUAGES
 
-# 版本和GitHub信息
 version = "1.5.3"
-github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -1059,5 +1057,5 @@ class AccountManagerApp:
 if __name__ == '__main__':
     root = tk.Tk()
     app = AccountManagerApp(root)
-    root.after(1000, check_for_update(root, root.title(), lang, version, github_url))
+    check_for_update(root, root.title(), lang, version)
     root.mainloop()

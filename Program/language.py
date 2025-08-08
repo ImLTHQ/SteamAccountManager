@@ -70,7 +70,7 @@ LANGUAGES = {
         'hour': "小时",
         'hours': "小时",
         'less_than_one_hour': "不足1小时",
-        # 快捷菜单时间选项
+
         'shortcut_20h': "20小时",
         'shortcut_3d': "3天",
         'shortcut_7d': "7天",
@@ -150,7 +150,7 @@ LANGUAGES = {
         'hour': "hour",
         'hours': "hours",
         'less_than_one_hour': "Less than 1 hour",
-        # 快捷菜单时间选项
+
         'shortcut_20h': "20 hours",
         'shortcut_3d': "3 days",
         'shortcut_7d': "7 days",

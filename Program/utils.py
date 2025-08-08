@@ -3,7 +3,6 @@ import urllib.request
 import pypinyin
 from pypinyin import Style
 
-# 检测系统语言
 def get_system_language():
     lang, _ = locale.getlocale()
     print(f"检测到的语言: {lang}")
@@ -13,7 +12,8 @@ def get_system_language():
         else:
             return 'en'
 
-def check_for_update(root, title, lang, version, github_url):
+github_url = "https://raw.githubusercontent.com/ImLTHQ/SteamAccountManager/main/version"
+def check_for_update(root, title, lang, version):
     try:
         with urllib.request.urlopen(github_url, timeout=3) as response:
             remote_version = response.read().decode('utf-8-sig').strip()
