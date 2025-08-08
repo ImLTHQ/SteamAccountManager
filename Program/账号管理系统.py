@@ -6,7 +6,7 @@ import json
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 from language import LANGUAGES
 
-version = "1.5.3"
+version = "1.5.4"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -264,6 +264,13 @@ class AccountManagerApp:
         github_label.pack(side=tk.RIGHT)
 
     def sort_by_column(self, column):
+        # 当排序的列不是"remarks"时，清除备注列的排序状态
+        if column != "remarks":
+            if "remarks" in self.sorting_state:
+                del self.sorting_state["remarks"]
+                # 同时清除备注列表头的箭头
+                self.tree.heading("remarks", text=lang['columns']["remarks"])
+        
         # 获取当前排序状态
         current_state = self.sorting_state.get(column, None)
         
@@ -727,30 +734,29 @@ class AccountManagerApp:
         source_data = data_to_display if data_to_display is not None else self.accounts_data
         items_to_reselect_in_ui = []
         
-        # 检查是否有任何列处于排序状态
-        is_sorted = any(v is not None for v in self.sorting_state.values())
+        # 检查是否仅对"备注"列进行排序
+        is_sorting_by_remarks = self.sorting_state.get("remarks", None) is not None
         
-        # 生成包含空白行的展示数据（仅在排序状态下）
+        # 生成包含空白行的展示数据（仅在按备注排序时）
         display_data = []
-        if is_sorted:
+        if is_sorting_by_remarks:
             prev_remark = None
             for acc_data in source_data:
                 # 对比当前备注与上一条，不同则插入空白行
                 current_remark = acc_data.get('remarks', '')
                 if prev_remark is not None and current_remark != prev_remark:
-                    # 添加空白行标记
                     display_data.append({'is_blank': True})
                 display_data.append(acc_data)
                 prev_remark = current_remark
         else:
-            # 未排序状态，直接使用原始数据
+            # 未按备注排序或未排序，直接使用原始数据
             display_data = source_data
         
         # 填充Treeview
         real_index = 1  # 实际数据序号（跳过空白行）
         for item_data in display_data:
-            if is_sorted and item_data.get('is_blank', False):
-                # 仅在排序状态下插入空白行
+            if is_sorting_by_remarks and item_data.get('is_blank', False):
+                # 仅在按备注排序时插入空白行
                 self.tree.insert("", tk.END, values=("", "", "", "", "", "", "", ""), tags=('blank',))
                 continue
             
