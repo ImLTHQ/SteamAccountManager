@@ -161,6 +161,18 @@ class AddAccountDialog(simpledialog.Dialog):
             text=lang['import_txt'], 
             command=self.import_txt
         ).pack(side=tk.LEFT)
+
+        ttk.Button(
+            import_frame, 
+            text=lang['confirm'], 
+            command=self.ok
+        ).pack(side=tk.LEFT)
+
+        ttk.Button(
+            import_frame, 
+            text=lang['cancel'], 
+            command=self.cancel
+        ).pack(side=tk.LEFT)
         
         return self.text_widget  # 设置初始焦点
 
