@@ -177,3 +177,19 @@ class AddAccountDialog(simpledialog.Dialog):
         """调用主窗口的导入TXT功能"""
         self.import_txt_callback()
         self.destroy()
+
+    def apply(self):
+        content = self.text_widget.get("1.0", tk.END).strip()
+        self.new_accounts_data = []
+        
+        if not content:
+            return
+            
+        for line in content.split("\n"):
+            line = line.strip()
+            if "----" in line:
+                parts = line.split("----", 1)
+                account = parts[0].strip()
+                password = parts[1].strip()
+                if account and password:
+                    self.new_accounts_data.append((account, password))
