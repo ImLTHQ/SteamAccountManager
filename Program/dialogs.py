@@ -144,6 +144,9 @@ class AddAccountDialog(simpledialog.Dialog):
     def __init__(self, parent, title, import_txt_callback):
         self.import_txt_callback = import_txt_callback
         super().__init__(parent, title)
+
+    def buttonbox(self):
+        pass
     
     def body(self, master):
         # 说明文本
