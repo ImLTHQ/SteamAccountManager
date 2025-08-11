@@ -1,6 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
-from tkinter import simpledialog, messagebox
+from tkinter import simpledialog, messagebox, ttk
 import datetime
 
 # 注意：实际使用时需确保导入正确的语言配置
@@ -193,3 +192,45 @@ class AddAccountDialog(simpledialog.Dialog):
                 password = parts[1].strip()
                 if account and password:
                     self.new_accounts_data.append((account, password))
+
+class CustomRemarkDialog(simpledialog.Dialog):
+    """用于输入自定义备注的对话框"""
+    def __init__(self, parent, title, initial_remark=""):
+        self.initial_remark = initial_remark
+        self.result = None  # 存储用户输入的备注
+        super().__init__(parent, title)
+
+    def body(self, master):
+        # 显示提示文本
+        ttk.Label(master, text=lang['enter_custom_remark']).pack(padx=10, pady=5, anchor=tk.W)
+        
+        # 创建输入框并设置初始值
+        self.remark_var = tk.StringVar(value=self.initial_remark)
+        self.remark_entry = ttk.Entry(master, textvariable=self.remark_var, width=40)
+        self.remark_entry.pack(padx=10, pady=5, fill=tk.X)
+        
+        return self.remark_entry  # 设置初始焦点
+
+    def apply(self):
+        # 获取并处理用户输入
+        self.result = self.remark_var.get().strip()
+
+    def buttonbox(self):
+        # 使用ttk按钮替换默认按钮
+        box = ttk.Frame(self)
+        
+        # 确定按钮
+        ttk.Button(box, text=lang['confirm'], width=10, command=self.ok).pack(
+            side=tk.LEFT, padx=5, pady=5
+        )
+        
+        # 取消按钮
+        ttk.Button(box, text=lang['cancel'], width=10, command=self.cancel).pack(
+            side=tk.LEFT, padx=5, pady=5
+        )
+        
+        # 绑定快捷键
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+        
+        box.pack(padx=5, pady=10)

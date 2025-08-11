@@ -3,11 +3,11 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
 
-from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog
+from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.5.5"
+version = "1.6"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -469,26 +469,6 @@ class AccountManagerApp:
             remarks_menu.grab_release()
 
     def _custom_remarks(self, account_obj):
-        # 自定义弹窗输入备注
-        class CustomRemarkDialog(simpledialog.Dialog):
-            def body(self, master):
-                tk.Label(master, text=lang['enter_custom_remark']).pack(padx=10, pady=10)
-                self.remark_var = tk.StringVar()
-                self.remark_entry = tk.Entry(master, textvariable=self.remark_var, width=30, font=("Arial", 10))
-                self.remark_entry.pack(padx=10, pady=5)
-                return self.remark_entry
-
-            def apply(self):
-                self.result = self.remark_var.get()
-
-            def buttonbox(self):
-                box = tk.Frame(self)
-                tk.Button(box, text=lang['confirm'], width=10, command=self.ok, default=tk.ACTIVE, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
-                tk.Button(box, text=lang['cancel'], width=10, command=self.cancel, font=("Arial", 10)).pack(side=tk.LEFT, padx=5, pady=5)
-                self.bind("<Return>", self.ok)
-                self.bind("<Escape>", self.cancel)
-                box.pack()
-
         dlg = CustomRemarkDialog(self.root, title=lang['custom_remark'])
         if dlg.result:
             self.set_remarks(account_obj, dlg.result)
