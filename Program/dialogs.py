@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import simpledialog, messagebox
 import datetime
 
@@ -138,42 +139,32 @@ class DateTimeDialog(simpledialog.Dialog):
         box.pack()
 
 
-class ManualAddAccountDialog(simpledialog.Dialog):
-    """用于手动添加账号密码的对话框"""
+class AddAccountDialog(simpledialog.Dialog):
+    """用于手动添加账号密码的对话框，增加导入TXT功能"""
+    def __init__(self, parent, title, import_txt_callback):
+        self.import_txt_callback = import_txt_callback
+        super().__init__(parent, title)
+    
     def body(self, master):
+        # 说明文本
         tk.Label(master, text=lang['enter_accounts']).pack(padx=10, pady=5)
+        
+        # 账号输入区域
         self.text_widget = tk.Text(master, width=50, height=10)
         self.text_widget.pack(padx=10, pady=5)
+        
+        # 添加导入TXT按钮
+        import_frame = ttk.Frame(master)
+        import_frame.pack(fill=tk.X, padx=10, pady=5)
+        ttk.Button(
+            import_frame, 
+            text=lang['import_txt'], 
+            command=self.import_txt
+        ).pack(side=tk.LEFT)
+        
         return self.text_widget  # 设置初始焦点
 
-    def apply(self):
-        content = self.text_widget.get("1.0", tk.END).strip()
-        self.new_accounts_data = []
-        
-        if not content:
-            return
-            
-        for line in content.split("\n"):
-            line = line.strip()
-            if "----" in line:
-                parts = line.split("----", 1)
-                account = parts[0].strip()
-                password = parts[1].strip()
-                if account and password:
-                    self.new_accounts_data.append((account, password))
-
-    def buttonbox(self):
-        # 重写按钮框方法，移除回车键绑定（避免误操作）
-        box = tk.Frame(self)
-        
-        tk.Button(box, text=lang['confirm'], width=10, command=self.ok, default=tk.ACTIVE).pack(
-            side=tk.LEFT, padx=5, pady=5
-        )
-        tk.Button(box, text=lang['cancel'], width=10, command=self.cancel).pack(
-            side=tk.LEFT, padx=5, pady=5
-        )
-        
-        # 只保留ESC键绑定
-        self.bind("<Escape>", self.cancel)
-        
-        box.pack()
+    def import_txt(self):
+        """调用主窗口的导入TXT功能"""
+        self.import_txt_callback()
+        self.destroy()

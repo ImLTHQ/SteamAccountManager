@@ -2,9 +2,9 @@ LANGUAGES = {
     'Chinese': {
         'app_title': "账号管理系统 - v{version}",
         'new_version': " [有新版本]",
+        'add_accounts': "添加账号",
         'import_txt': "导入TXT",
         'export_selected': "导出选中",
-        'manual_add': "手动添加",
         'refresh': "刷新",
         'search': "搜索:",
         'show_available_only': "只显示可用",
@@ -87,9 +87,9 @@ LANGUAGES = {
     'English': {
         'app_title': "Steam Account Manager - v{version}",
         'new_version': " [New Version Available]",
+        'add_accounts': "Add Accounts",
         'import_txt': "Import TXT",
         'export_selected': "Export Selected",
-        'manual_add': "Add Manually",
         'refresh': "Refresh",
         'search': "Search:",
         'show_available_only': "Show Available Only",

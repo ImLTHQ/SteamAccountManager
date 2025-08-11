@@ -5,7 +5,7 @@ from pypinyin import Style
 
 def get_system_language():
     lang, _ = locale.getlocale()
-    print(f"检测到的语言: {lang}")
+    print(f"Language: {lang}")
     if lang:
         if lang.startswith('Chinese'):
             return 'Chinese'

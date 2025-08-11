@@ -3,7 +3,7 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
 
-from dialogs import DaysHoursDialog, DateTimeDialog, ManualAddAccountDialog
+from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
@@ -59,9 +59,8 @@ class AccountManagerApp:
         top_frame = ttk.Frame(self.root, padding="10")
         top_frame.pack(fill=tk.X)
         buttons_data = [
-            (lang['import_txt'], self.import_txt),
+            (lang['add_accounts'], self.add_account_dialog),
             (lang['export_selected'], self.export_txt),
-            (lang['manual_add'], self.manual_add_account_dialog),
             (lang['refresh'], self.refresh_treeview),
         ]
         for text, command in buttons_data:
@@ -777,8 +776,12 @@ class AccountManagerApp:
         except Exception as e:
             messagebox.showerror(lang['import_error'], lang['import_failed'].format(error=e), parent=self.root)
 
-    def manual_add_account_dialog(self):
-        dialog = ManualAddAccountDialog(self.root)
+    def add_account_dialog(self):
+        dialog = AddAccountDialog(
+            self.root,
+            title=lang['add_accounts'],
+            import_txt_callback=self.import_txt
+        )
         if dialog.new_accounts_data:
             new_accounts_count = 0
             for acc_info in dialog.new_accounts_data:
