@@ -3,7 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 import datetime
 import json
 
-from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog
+from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog, ExportDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
@@ -60,7 +60,7 @@ class AccountManagerApp:
         top_frame.pack(fill=tk.X)
         buttons_data = [
             (lang['add_accounts'], self.add_account_dialog),
-            (lang['export_selected'], self.export_txt),
+            (lang['export_selected'], self.export_selected),
             (lang['refresh'], self.refresh_treeview),
         ]
         for text, command in buttons_data:
@@ -868,31 +868,30 @@ class AccountManagerApp:
             self.save_data()
             messagebox.showinfo(lang['delete_success'], lang['deleted_accounts'].format(count=len(selected_accounts_to_delete)), parent=self.root)
 
-    def export_txt(self):
-        selected_accounts = [
-            acc for acc in self.accounts_data if acc.get('selected_state', False)
-        ]
-        if not selected_accounts:
-            messagebox.showinfo(lang['export_no_selected'], lang['export_no_accounts'], parent=self.root)
+    def export_selected(self):
+        # 获取选中的账号
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showinfo(lang['export_no_selected'], lang['export_no_accounts'])
             return
-        
-        filepath = filedialog.asksaveasfilename(
-            title=lang['export_selected'],
-            defaultextension=".txt",
-            filetypes=(("Text files", "*.txt"), ("All files", "*.*")),
-            parent=self.root
-        )
-        if not filepath:
-            return
-        
-        try:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                for acc in selected_accounts:
-                    line = f"{acc['account']}----{acc['password']}\n"
-                    f.write(line)
-            messagebox.showinfo(lang['export_success'], lang['exported_accounts'].format(count=len(selected_accounts), path=filepath), parent=self.root)
-        except Exception as e:
-            messagebox.showerror(lang['export_error'], lang['export_failed'].format(error=e), parent=self.root)
+    
+        selected_accounts = []
+        for item in selected_items:
+            account_data = self.tree.item(item)['values']
+            selected_accounts.append({
+                'account': account_data[2],  # 根据实际列索引调整
+                'password': account_data[3],
+                'remarks': account_data[6]
+            })
+    
+        # 显示导出方式选择对话框
+        dialog = ExportDialog(self.root, lang['export_selected'], selected_accounts)
+        if dialog.result:
+            export_type, accounts = dialog.result
+            if export_type == "txt":
+                self.export_to_txt(accounts)
+            elif export_type == "clipboard":
+                self.export_to_clipboard(accounts)
 
     def batch_set_remarks(self):
         selected_accounts = [
