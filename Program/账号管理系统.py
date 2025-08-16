@@ -7,7 +7,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.6"
+version = "1.6.1"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]

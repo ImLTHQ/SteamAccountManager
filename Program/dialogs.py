@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import simpledialog, messagebox, ttk
 import datetime
 
-# 注意：实际使用时需确保导入正确的语言配置
 from language import LANGUAGES
 from utils import get_system_language
 
@@ -138,6 +137,7 @@ class AddAccountDialog(simpledialog.Dialog):
     """用于手动添加账号密码的对话框，增加导入TXT功能"""
     def __init__(self, parent, title, import_txt_callback):
         self.import_txt_callback = import_txt_callback
+        self.new_accounts_data = []  # 初始化账号数据列表，解决属性不存在问题
         super().__init__(parent, title)
 
     def buttonbox(self):
@@ -173,9 +173,16 @@ class AddAccountDialog(simpledialog.Dialog):
         return self.text_widget  # 设置初始焦点
 
     def import_txt(self):
-        """调用主窗口的导入TXT功能"""
-        self.import_txt_callback()
+        """调用主窗口的导入TXT功能并接收返回结果"""
+        # 获取导入的账号数据，如果用户取消则返回空列表
+        imported_data = self.import_txt_callback() or []
+        self.new_accounts_data = imported_data
         self.destroy()
+
+    def cancel(self):
+        """取消操作时确保属性有默认值"""
+        self.new_accounts_data = []
+        super().cancel()
 
     def apply(self):
         content = self.text_widget.get("1.0", tk.END).strip()
