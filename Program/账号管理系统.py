@@ -3,6 +3,8 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
 import subprocess
+import winreg
+import os
 
 from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog
 from language import LANGUAGES
@@ -45,6 +47,37 @@ class AccountManagerApp:
         self.setup_ui()
         self._configure_treeview_style()
         self.load_data()
+        self.steam_path = self.get_steam_install_path()
+
+        if self.steam_path:
+            print(f"Steam安装路径: {self.steam_path}")
+        else:
+            print("未检测到Steam安装路径")
+
+    def get_steam_install_path(self):
+        """从Windows注册表获取Steam安装路径"""
+        possible_paths = [
+            # Steam客户端通常的注册表路径
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Valve\Steam", "InstallPath"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Wow6432Node\Valve\Steam", "InstallPath"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Valve\Steam", "InstallPath")
+        ]
+    
+        for hive, subkey, value_name in possible_paths:
+            try:
+                # 打开注册表项
+                key = winreg.OpenKey(hive, subkey, 0, winreg.KEY_READ)
+                # 读取安装路径
+                install_path, _ = winreg.QueryValueEx(key, value_name)
+                winreg.CloseKey(key)
+            
+                # 验证路径是否存在（检查steam.exe是否存在）
+                if os.path.exists(os.path.join(install_path, "steam.exe")):
+                    return install_path
+            except (FileNotFoundError, OSError):
+                continue  # 尝试下一个可能的路径
+    
+        return None  # 未找到Steam安装路径
 
     def _configure_treeview_style(self):
         style = ttk.Style()
@@ -415,7 +448,12 @@ class AccountManagerApp:
 
     def login_account(self, account_obj):
         """使用指定账号和密码启动Steam"""
-        steam_path = r"C:\Program Files (x86)\Steam\steam.exe"
+        # 使用检测到的路径，如果未检测到则使用默认路径
+        steam_path = self.steam_path if self.steam_path else r"C:\Program Files (x86)\Steam\steam.exe"
+        # 确保路径指向steam.exe
+        if not steam_path.endswith("steam.exe"):
+            steam_path = os.path.join(steam_path, "steam.exe")
+        
         account = account_obj['account']
         password = account_obj['password']
 
