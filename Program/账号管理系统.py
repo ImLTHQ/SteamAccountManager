@@ -2,12 +2,13 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import datetime
 import json
+import subprocess
 
 from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.7"
+version = "1.8"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -377,36 +378,72 @@ class AccountManagerApp:
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
         column_header_text = self.tree.heading(column_id_str)['text']
-        # 移除箭头后再比较
-        if column_header_text.endswith(self.SORT_ASC) or column_header_text.endswith(self.SORT_DESC):
-            column_header_text = column_header_text[:-2]
+        
+        # 正确移除排序箭头（只在有箭头时处理）
+        if column_header_text.endswith(self.SORT_ASC):
+            column_header_text = column_header_text[:-len(self.SORT_ASC)]
+        elif column_header_text.endswith(self.SORT_DESC):
+            column_header_text = column_header_text[:-len(self.SORT_DESC)]
+        
+        # 处理选择状态
         if column_header_text not in (lang['columns']['remarks'], lang['columns']['shortcut'], lang['columns']['available_time']) and not (event.state & 0x0004 or event.state & 0x0008):
             for acc in self.accounts_data:
                 self._set_account_selection_state(acc, False)
             self._set_account_selection_state(account_obj, True)
-        if column_header_text == lang['columns']['remarks']:
-            self._show_remarks_menu(event, account_obj)
-        elif column_header_text == lang['columns']['shortcut']:
-            self._show_shortcut_menu(event, account_obj)
-        elif column_header_text == lang['columns']['available_time']:
-            self._show_available_time_menu(event, account_obj)
-        elif column_header_text == lang['columns']['account']:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(account_obj['account'])
-            self.root.update()
-        elif column_header_text == lang['columns']['password']:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(account_obj['password'])
-            self.root.update()
-
-    def _show_available_time_menu(self, event, account_obj):
-        # 显示修改可用时间的菜单
+        
+        # 创建右键菜单
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label=lang['modify_available_time'], command=lambda: self._modify_available_time(account_obj))
+
+        if column_header_text == lang['columns']['account']:
+            menu.add_command(
+                label=lang['login_account'], 
+                command=lambda: self.login_account(account_obj)
+            )
+        
+        # 根据点击的列添加相应选项
+        if column_header_text == lang['columns']['remarks']:
+            self._add_remarks_menu_items(menu, account_obj)
+        elif column_header_text == lang['columns']['shortcut']:
+            self._add_shortcut_menu_items(menu, account_obj)
+        elif column_header_text == lang['columns']['available_time']:
+            self._add_available_time_menu_items(menu, account_obj)
+
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def login_account(self, account_obj):
+        """使用指定账号和密码启动Steam"""
+        steam_path = r"C:\Program Files (x86)\Steam\steam.exe"
+        account = account_obj['account']
+        password = account_obj['password']
+
+        try:
+            subprocess.Popen([
+                steam_path,
+                "-login",
+                account,
+                password
+            ])
+        except Exception as e:
+            messagebox.showerror(
+                "启动失败",
+                f"无法启动Steam或执行登录命令：\n{str(e)}"
+            )
+
+    # 新增：辅助方法，复制内容到剪贴板
+    def copy_to_clipboard(self, content):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(content)
+        self.root.update()
+
+    # 重构：将各列的菜单选项拆分为单独的方法
+    def _add_available_time_menu_items(self, menu, account_obj):
+        menu.add_command(
+            label=lang['modify_available_time'], 
+            command=lambda: self._modify_available_time(account_obj)
+        )
 
     def _modify_available_time(self, account_obj):
         # 修改账号的可用时间
@@ -425,23 +462,45 @@ class AccountManagerApp:
             self.filter_treeview()
             self.save_data()
 
-    def _show_shortcut_menu(self, event, account_obj):
-        shortcut_menu = tk.Menu(self.root, tearoff=0)
-        shortcut_menu.add_command(label=lang['immediately_available'], command=lambda: self.apply_shortcut(account_obj, "reset"))
-        shortcut_menu.add_separator()
-        shortcut_menu.add_command(label=lang['shortcut_20h'], command=lambda: self.apply_shortcut(account_obj, "delta", hours=20))
-        shortcut_menu.add_command(label=lang['shortcut_3d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=3))
-        shortcut_menu.add_command(label=lang['shortcut_7d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=7))
-        shortcut_menu.add_command(label=lang['shortcut_14d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=14))
-        shortcut_menu.add_command(label=lang['shortcut_31d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=31))
-        shortcut_menu.add_command(label=lang['shortcut_45d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=45))
-        shortcut_menu.add_command(label=lang['shortcut_181d'], command=lambda: self.apply_shortcut(account_obj, "delta", days=181))
-        shortcut_menu.add_separator()
-        shortcut_menu.add_command(label=lang['custom_days_hours'], command=lambda: self._custom_shortcut(account_obj))
-        try:
-            shortcut_menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            shortcut_menu.grab_release()
+    def _add_shortcut_menu_items(self, menu, account_obj):
+        menu.add_command(
+            label=lang['immediately_available'], 
+            command=lambda: self.apply_shortcut(account_obj, "reset")
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=lang['shortcut_20h'], 
+            command=lambda: self.apply_shortcut(account_obj, "delta", hours=20)
+        )
+        menu.add_command(
+            label=lang['shortcut_3d'], 
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=3)
+        )
+        menu.add_command(
+            label=lang['shortcut_7d'], 
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=7)
+        )
+        menu.add_command(
+            label=lang['shortcut_14d'], 
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=14)
+        )
+        menu.add_command(
+            label=lang['shortcut_31d'], 
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=31)
+        )
+        menu.add_command(
+            label=lang['shortcut_45d'], 
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=45)
+        )
+        menu.add_command(
+            label=lang['shortcut_181d'], 
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=181)
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=lang['custom_days_hours'], 
+            command=lambda: self._custom_shortcut(account_obj)
+        )
 
     def _custom_shortcut(self, account_obj):
         # 使用自定义对话框输入天数和小时
@@ -454,19 +513,25 @@ class AccountManagerApp:
         else:
             self.apply_shortcut(account_obj, "delta", days=custom_days, hours=custom_hours)
 
-    def _show_remarks_menu(self, event, account_obj):
-        remarks_menu = tk.Menu(self.root, tearoff=0)
-
-        remarks_menu.add_command(label=lang['remarks_options'][0], command=lambda: self.set_remarks(account_obj, ""))
-        remarks_menu.add_separator()
-        remarks_menu.add_command(label=lang['remarks_options'][1], command=lambda: self.set_remarks(account_obj, lang['remarks_options'][1]))
-        remarks_menu.add_command(label=lang['remarks_options'][2], command=lambda: self.set_remarks(account_obj, lang['remarks_options'][2]))
-        remarks_menu.add_separator()
-        remarks_menu.add_command(label=lang['custom_remark'], command=lambda: self._custom_remarks(account_obj))
-        try:
-            remarks_menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            remarks_menu.grab_release()
+    def _add_remarks_menu_items(self, menu, account_obj):
+        menu.add_command(
+            label=lang['remarks_options'][0], 
+            command=lambda: self.set_remarks(account_obj, "")
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=lang['remarks_options'][1], 
+            command=lambda: self.set_remarks(account_obj, lang['remarks_options'][1])
+        )
+        menu.add_command(
+            label=lang['remarks_options'][2], 
+            command=lambda: self.set_remarks(account_obj, lang['remarks_options'][2])
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=lang['custom_remark'], 
+            command=lambda: self._custom_remarks(account_obj)
+        )
 
     def _custom_remarks(self, account_obj):
         dlg = CustomRemarkDialog(self.root, title=lang['custom_remark'])

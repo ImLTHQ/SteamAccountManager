@@ -86,6 +86,8 @@ LANGUAGES = {
         '_day': "日",
         '_hour': "时",
         '_minute': "分",
+
+        'login_account': '登录此账号',
     },
     'English': {
         'app_title': "Steam Account Manager - v{version}",
@@ -174,5 +176,7 @@ LANGUAGES = {
         '_day': "Day",
         '_hour': "Hour",
         '_minute': "Minute",
+
+        'login_account': 'Login this account',
     }
 }
