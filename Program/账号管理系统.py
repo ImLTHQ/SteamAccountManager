@@ -798,9 +798,8 @@ class AccountManagerApp:
             # 修改搜索匹配逻辑：同时检查账号、密码和备注
             if search_text:
                 account_match = search_text in acc.get('account', '').lower()
-                password_match = search_text in acc.get('password', '').lower()
                 remark_match = search_text in acc.get('remarks', '').lower()
-                match_search = account_match or password_match or remark_match
+                match_search = account_match or remark_match
             else:
                 match_search = True  # 无搜索内容时全部匹配
             
