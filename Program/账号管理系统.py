@@ -8,7 +8,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.8.1"
+version = "1.8.2"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -822,23 +822,20 @@ class AccountManagerApp:
             messagebox.showerror(lang['import_error'], lang['import_failed'].format(error=e), parent=self.root)
 
     def add_account_dialog(self):
-        dialog = AddAccountDialog(
-            self.root,
-            title=lang['add_accounts'],
-            import_txt_callback=self.import_txt
-        )
-        if dialog.new_accounts_data:
-            new_accounts_count = 0
-            for acc_info in dialog.new_accounts_data:
-                account, password = acc_info
-                if self._add_new_account_entry(account, password):
-                    new_accounts_count += 1
-            if new_accounts_count > 0:
-                messagebox.showinfo(lang['add_success'], lang['added_new_accounts'].format(count=new_accounts_count), parent=self.root)
-                self.save_data()
-            elif dialog.new_accounts_data:
-                messagebox.showinfo(lang['manual_add'], lang['add_no_new'], parent=self.root)
-            self.filter_treeview()
+        dialog = AddAccountDialog(self.root, lang['add_accounts'], self.import_txt)
+        if hasattr(dialog, 'new_accounts_data') and dialog.new_accounts_data:
+            if dialog.new_accounts_data:
+                new_accounts_count = 0
+                for acc_info in dialog.new_accounts_data:
+                    account, password = acc_info
+                    if self._add_new_account_entry(account, password):
+                        new_accounts_count += 1
+                if new_accounts_count > 0:
+                    messagebox.showinfo(lang['add_success'], lang['added_new_accounts'].format(count=new_accounts_count), parent=self.root)
+                    self.save_data()
+                elif dialog.new_accounts_data:
+                    messagebox.showinfo(lang['manual_add'], lang['add_no_new'], parent=self.root)
+                self.filter_treeview()
 
     def save_data(self):
         data_to_save = []
