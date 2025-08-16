@@ -10,7 +10,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.8.4"
+version = "1.8.5"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -44,6 +44,7 @@ class AccountManagerApp:
         self._selection_mode_toggle = None
         self.remarks_sort_reverse = False
         self.sorting_state = {}  # 存放各列排序状态：None=未排序, False=升序, True=降序
+        self.show_passwords_var = tk.BooleanVar(value=False)
         self.setup_ui()
         self._configure_treeview_style()
         self.load_data()
@@ -116,6 +117,9 @@ class AccountManagerApp:
         # 只显示已备注
         self.show_remarked_only_var = tk.BooleanVar()
         ttk.Checkbutton(search_frame, text=lang['show_remarked_only'], variable=self.show_remarked_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
+        
+        # 添加显示密码复选框
+        ttk.Checkbutton(search_frame, text=lang.get('show_passwords', lang['show_passwords']), variable=self.show_passwords_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
         # 删除按钮先不显示
         self.delete_btn = ttk.Button(search_frame, text=lang['delete_selected'], command=self.delete_selected)
@@ -661,6 +665,11 @@ class AccountManagerApp:
         except (ValueError, TypeError):
             display_shortcut = ""
             
+        # 处理密码显示
+        password = account_obj['password']
+        if not self.show_passwords_var.get():
+            password = '*' * len(password)
+            
         # 找到当前项的索引
         index = 1  # 默认序号为1
         visible_items = []
@@ -678,7 +687,7 @@ class AccountManagerApp:
             index,  # 序号
             select_char,
             account_obj['account'],
-            account_obj['password'],
+            password,
             account_obj['status'],
             account_obj['available_time'],
             account_obj['remarks'],
@@ -727,6 +736,11 @@ class AccountManagerApp:
             acc_data.setdefault('remarks', '')
             display_shortcut = ""
             
+            # 处理密码显示
+            password = acc_data['password']
+            if not self.show_passwords_var.get():
+                password = '*' * len(password)
+            
             try:
                 available_dt = datetime.datetime.strptime(acc_data['available_time'], "%Y-%m-%d %H:%M")
                 now = datetime.datetime.now()
@@ -753,7 +767,7 @@ class AccountManagerApp:
                 real_index,  # 序号保持连续（跳过空白行）
                 select_char,
                 acc_data['account'],
-                acc_data['password'],
+                password,
                 acc_data['status'],
                 acc_data['available_time'],
                 acc_data['remarks'],
