@@ -241,3 +241,39 @@ class CustomRemarkDialog(simpledialog.Dialog):
         self.bind("<Escape>", self.cancel)
         
         box.pack(padx=5, pady=10)
+
+class ExportMethodDialog(simpledialog.Dialog):
+    """用于选择导出方式的对话框（TXT文件或剪贴板）"""
+    def __init__(self, parent):
+        self.result = None  # 存储用户选择的导出方式："txt" 或 "clipboard"
+        super().__init__(parent, title=lang['select_export_method'])
+
+    def body(self, master):
+        # 不添加说明文本，只保留标题
+        return master
+
+    def buttonbox(self):
+        box = ttk.Frame(self)
+        
+        # TXT文件按钮
+        ttk.Button(
+            box, 
+            text=lang['txt_file'], 
+            width=15, 
+            command=lambda: self.set_result("txt")
+        ).pack(side=tk.LEFT, padx=10, pady=10)
+        
+        # 剪贴板按钮
+        ttk.Button(
+            box, 
+            text=lang['clipboard'], 
+            width=15, 
+            command=lambda: self.set_result("clipboard")
+        ).pack(side=tk.LEFT, padx=10, pady=10)
+        
+        box.pack(padx=10, pady=10)
+
+    def set_result(self, method):
+        """设置导出方式并关闭对话框"""
+        self.result = method
+        self.ok()
