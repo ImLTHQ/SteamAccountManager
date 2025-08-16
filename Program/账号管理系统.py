@@ -448,8 +448,21 @@ class AccountManagerApp:
 
     def login_account(self, account_obj):
         """使用指定账号和密码启动Steam"""
+
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", "steam.exe"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            print("Steam 进程已成功关闭")
+        except subprocess.CalledProcessError as e:
+            print(f"{e.stderr}")
+
         # 使用检测到的路径，如果未检测到则使用默认路径
-        steam_path = self.steam_path if self.steam_path else r"C:\Program Files (x86)\Steam\steam.exe"
+        steam_path = self.steam_path
         # 确保路径指向steam.exe
         if not steam_path.endswith("steam.exe"):
             steam_path = os.path.join(steam_path, "steam.exe")
