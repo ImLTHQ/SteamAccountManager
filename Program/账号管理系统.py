@@ -459,7 +459,8 @@ class AccountManagerApp:
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
             print("Steam 进程已成功关闭")
         except subprocess.CalledProcessError as e:
@@ -475,12 +476,9 @@ class AccountManagerApp:
         password = account_obj['password']
 
         try:
-            subprocess.Popen([
-                steam_path,
-                "-login",
-                account,
-                password
-            ])
+            subprocess.Popen([steam_path, "-login", account, password],
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
         except Exception as e:
             messagebox.showerror(
                 "启动失败",
