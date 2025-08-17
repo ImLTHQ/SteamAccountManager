@@ -485,7 +485,7 @@ class AccountManagerApp:
             )
         except Exception as e:
             messagebox.showerror(
-                "启动失败",
+                "错误",
                 f"{e.stderr}"
             )
 
