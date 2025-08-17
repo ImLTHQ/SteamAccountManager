@@ -455,6 +455,19 @@ class AccountManagerApp:
 
         try:
             subprocess.run(
+                ["taskkill", "/F", "/IM", "cs2.exe"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            print("cs2 进程已成功关闭")
+        except subprocess.CalledProcessError as e:
+            print(f"{e.stderr}")
+
+        try:
+            subprocess.run(
                 ["taskkill", "/F", "/IM", "steam.exe"],
                 check=True,
                 stdout=subprocess.PIPE,
@@ -464,11 +477,7 @@ class AccountManagerApp:
             )
             print("Steam 进程已成功关闭")
         except subprocess.CalledProcessError as e:
-            if "没有找到进程" not in e.stderr:
-                messagebox.showerror(
-                    "错误",
-                    f"{e.stderr}"
-                )
+            print(f"{e.stderr}")
 
         # 使用检测到的路径，如果未检测到则使用默认路径
         steam_path = self.steam_path
@@ -484,10 +493,7 @@ class AccountManagerApp:
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
         except Exception as e:
-            messagebox.showerror(
-                "错误",
-                f"{e.stderr}"
-            )
+            print(f"{e.stderr}")
 
     # 新增：辅助方法，复制内容到剪贴板
     def copy_to_clipboard(self, content):
