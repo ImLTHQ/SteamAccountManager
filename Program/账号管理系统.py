@@ -464,7 +464,11 @@ class AccountManagerApp:
             )
             print("Steam 进程已成功关闭")
         except subprocess.CalledProcessError as e:
-            print(f"{e.stderr}")
+            if "没有找到进程" not in e.stderr:
+                messagebox.showerror(
+                    "错误",
+                    f"{e.stderr}"
+                )
 
         # 使用检测到的路径，如果未检测到则使用默认路径
         steam_path = self.steam_path
@@ -482,7 +486,7 @@ class AccountManagerApp:
         except Exception as e:
             messagebox.showerror(
                 "启动失败",
-                f"无法启动Steam或执行登录命令：\n{str(e)}"
+                f"{e.stderr}"
             )
 
     # 新增：辅助方法，复制内容到剪贴板
