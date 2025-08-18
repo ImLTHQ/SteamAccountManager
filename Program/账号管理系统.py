@@ -10,7 +10,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.8.8"
+version = "1.8.9"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -489,7 +489,7 @@ class AccountManagerApp:
         password = account_obj['password']
 
         try:
-            subprocess.Popen([steam_path, "-login", account, password],
+            subprocess.Popen([steam_path, "-login", account, password ,"-RememberPassword"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
         except Exception as e:
