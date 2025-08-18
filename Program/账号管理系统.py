@@ -1017,13 +1017,14 @@ class AccountManagerApp:
         if not export_method:  # 用户取消选择
             return
 
-        # 收集选中账号的数据
+        # 收集选中账号的原始数据（使用真实密码）
         selected_accounts = []
         for item in selected_items:
-            values = self.tree.item(item, "values")
-            account = values[self.COLUMNS.index("account")]
-            password = values[self.COLUMNS.index("password")]
-            selected_accounts.append(f"{account}----{password}")
+            # 获取账号对象（包含原始密码）
+            account_obj = self.get_account_by_tree_id(item)
+            if account_obj:
+                # 直接使用原始密码，而非TreeView中显示的内容
+                selected_accounts.append(f"{account_obj['account']}----{account_obj['password']}")
 
         # 根据选择的导出方式执行操作
         if export_method == "txt":
