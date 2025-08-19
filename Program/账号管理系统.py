@@ -83,11 +83,10 @@ class AccountManagerApp:
     def _configure_treeview_style(self):
         style = ttk.Style()
         style.map('Treeview',
-                  background=[('selected', 'lightgreen')],
-                  foreground=[('selected', 'black')])
+              background=[('selected', '#e0e0e0')],
+              foreground=[('selected', 'black')])
         self.tree.tag_configure(lang['status_available'], background="#e0e0e0", foreground="black")
         self.tree.tag_configure(lang['status_unavailable'], background="salmon")
-        # 配置空白行样式
         self.tree.tag_configure('blank', background='#f0f0f0')
 
     def setup_ui(self):
