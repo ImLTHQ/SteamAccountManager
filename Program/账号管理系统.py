@@ -10,7 +10,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.8.9"
+version = "1.9"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -1003,9 +1003,13 @@ class AccountManagerApp:
             messagebox.showinfo(lang['delete_success'], lang['deleted_accounts'].format(count=len(selected_accounts_to_delete)), parent=self.root)
 
     def export_txt(self):
-        # 检查是否有选中的账号
-        selected_items = [item for item in self.tree.selection() if item != ""]
-        if not selected_items:
+        # 检查是否有选中的账号（使用数据中的selected_state）
+        selected_accounts = [
+            acc for acc in self.accounts_data 
+            if acc.get('selected_state', False)
+        ]
+        
+        if not selected_accounts:
             messagebox.showinfo(lang['export_no_selected'], lang['export_no_accounts'])
             return
 
@@ -1018,13 +1022,10 @@ class AccountManagerApp:
             return
 
         # 收集选中账号的原始数据（使用真实密码）
-        selected_accounts = []
-        for item in selected_items:
-            # 获取账号对象（包含原始密码）
-            account_obj = self.get_account_by_tree_id(item)
-            if account_obj:
-                # 直接使用原始密码，而非TreeView中显示的内容
-                selected_accounts.append(f"{account_obj['account']}----{account_obj['password']}")
+        export_data = [
+            f"{acc['account']}----{acc['password']}" 
+            for acc in selected_accounts
+        ]
 
         # 根据选择的导出方式执行操作
         if export_method == "txt":
@@ -1038,10 +1039,10 @@ class AccountManagerApp:
 
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
-                    f.write("\n".join(selected_accounts))
+                    f.write("\n".join(export_data))
                 messagebox.showinfo(
                     lang['export_success'],
-                    lang['exported_accounts'].format(count=len(selected_accounts), path=file_path)
+                    lang['exported_accounts'].format(count=len(export_data), path=file_path)
                 )
             except Exception as e:
                 messagebox.showerror(
@@ -1053,17 +1054,18 @@ class AccountManagerApp:
             # 剪贴板导出逻辑
             try:
                 self.root.clipboard_clear()
-                self.root.clipboard_append("\n".join(selected_accounts))
+                self.root.clipboard_append("\n".join(export_data))
                 self.root.update()  # 确保剪贴板内容被更新
                 messagebox.showinfo(
                     lang['export_success'],
-                    lang['exported_accounts'].format(count=len(selected_accounts), path=lang['clipboard'])
+                    lang['exported_accounts'].format(count=len(export_data), path=lang['clipboard'])
                 )
             except Exception as e:
                 messagebox.showerror(
                     lang['export_error'],
                     lang['export_failed'].format(error=str(e))
                 )
+
 
     def batch_set_remarks(self):
         selected_accounts = [
