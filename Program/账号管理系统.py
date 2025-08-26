@@ -10,7 +10,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.9.1"
+version = "1.9.2"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -83,7 +83,7 @@ class AccountManagerApp:
     def _configure_treeview_style(self):
         style = ttk.Style()
         style.map('Treeview',
-              background=[('selected', '#e0e0e0')],
+              background=[('selected', "lightgreen")],
               foreground=[('selected', 'black')])
         self.tree.tag_configure(lang['status_available'], background="#e0e0e0", foreground="black")
         self.tree.tag_configure(lang['status_unavailable'], background="salmon")
