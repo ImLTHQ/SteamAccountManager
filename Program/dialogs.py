@@ -185,11 +185,14 @@ class AddAccountDialog(simpledialog.Dialog):
         for line in content.split("\n"):
             line = line.strip()
             if "----" in line:
-                parts = line.split("----", 1)
-                account = parts[0].strip()
-                password = parts[1].strip()
+                # 按"----"分割，最多分割两次
+                parts = line.split("----", 2)
+                account = parts[0].strip() if len(parts) > 0 else ""
+                password = parts[1].strip() if len(parts) > 1 else ""
+                others = parts[2].strip() if len(parts) > 2 else ""
                 if account and password:
-                    self.new_accounts_data.append((account, password))
+                    self.new_accounts_data.append((account, password, others))
+
 
 class CustomRemarkDialog(simpledialog.Dialog):
     """用于输入自定义备注的对话框"""
