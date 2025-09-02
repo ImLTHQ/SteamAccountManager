@@ -106,7 +106,7 @@ class AccountManagerApp:
         top_frame.pack(fill=tk.X)
         buttons_data = [
             (lang['add_accounts'], self.add_account_dialog),
-            (lang['export_selected'], self.export_txt),
+            (lang['export_selected'], self.export_selected),
             (lang['refresh'], self.refresh_treeview),
         ]
         for text, command in buttons_data:
@@ -1013,7 +1013,7 @@ class AccountManagerApp:
             self.save_data()
             messagebox.showinfo(lang['delete_success'], lang['deleted_accounts'].format(count=len(selected_accounts_to_delete)), parent=self.root)
 
-    def export_txt(self):
+    def export_selected(self):
         # 检查是否有选中的账号（使用数据中的selected_state）
         selected_accounts = [
             acc for acc in self.accounts_data 
