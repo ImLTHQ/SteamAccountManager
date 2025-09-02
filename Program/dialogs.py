@@ -178,18 +178,18 @@ class AddAccountDialog(simpledialog.Dialog):
     def apply(self):
         content = self.text_widget.get("1.0", tk.END).strip()
         self.new_accounts_data = []
-        if not content: return
+        
+        if not content:
+            return
+            
         for line in content.split("\n"):
             line = line.strip()
             if "----" in line:
-                # 按"----"分割，最多分割两次，确保第二次及以后的合并为others
-                parts = line.split("----", 2)  # 最多分割成3部分
-                account = parts[0].strip() if len(parts) > 0 else ""
-                password = parts[1].strip() if len(parts) > 1 else ""
-                others = parts[2].strip() if len(parts) > 2 else ""  # 第二次分割后的内容
+                parts = line.split("----", 1)
+                account = parts[0].strip()
+                password = parts[1].strip()
                 if account and password:
-                    self.new_accounts_data.append((account, password, others))
-
+                    self.new_accounts_data.append((account, password))
 
 class CustomRemarkDialog(simpledialog.Dialog):
     """用于输入自定义备注的对话框"""
