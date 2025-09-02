@@ -25,7 +25,8 @@ LANGUAGES = {
             'status': "状态",
             'available_time': "可用时间",
             'remarks': "备注",
-            'shortcut': "冷却时间"
+            'shortcut': "冷却时间",
+            'others': "其它",
         },
         'status_available': "可用",
         'status_unavailable': "不可用",
@@ -116,7 +117,8 @@ LANGUAGES = {
             'status': "Status",
             'available_time': "Available Time",
             'remarks': "Remarks",
-            'shortcut': "Cooldown"
+            'shortcut': "Cooldown",
+            'others': "Others",
         },
         'status_available': "Available",
         'status_unavailable': "Unavailable",

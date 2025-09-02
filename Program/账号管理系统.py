@@ -17,14 +17,26 @@ lang = LANGUAGES[current_lang]
 
 class AccountManagerApp:
     # 添加"序号"列作为第一列
-    COLUMNS = ("index", "select", "account", "password", "status", "available_time", "remarks", "shortcut")
+    COLUMNS = ("index", "select", "account", "password", "status", "available_time", "remarks", "shortcut", "others")
     COLUMN_WIDTHS = {
-        "index": 25, "select": 50, "account": 100, "password": 100, "status": 70,
-        "available_time": 130, "remarks": 100, "shortcut": 100
+        "index": 25,
+        "select": 50,
+        "account": 100,
+        "password": 100,
+        "status": 70,
+        "available_time": 130,
+        "remarks": 100,
+        "shortcut": 100,
+        "others": 120
     }
     COLUMN_ANCHORS = {
-        "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
-        "remarks": tk.CENTER, "shortcut": tk.CENTER
+        "index": tk.CENTER,
+        "select": tk.CENTER,
+        "status": tk.CENTER,
+        "available_time": tk.CENTER,
+        "remarks": tk.CENTER,
+        "shortcut": tk.CENTER,
+        "others": tk.CENTER
     }
     REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2, "Level 1": 1, "Level 2": 2}
     REMARKS_FROM_JSON = {0: "", 1: lang['remarks_options'][1], 2: lang['remarks_options'][2]}
@@ -35,7 +47,7 @@ class AccountManagerApp:
     def __init__(self, root_window):
         self.root = root_window
         self.root.title(lang['app_title'].format(version=version))
-        self.root.geometry("1000x600")
+        self.root.geometry("1200x600")
         self.accounts_data = []
         self.original_data = []  # 保存原始数据用于恢复未排序状态
         self.data_file = "accounts_data.json"
