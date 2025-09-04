@@ -376,7 +376,7 @@ class AccountManagerApp:
                 self._set_account_selection_state(acc, self._selection_mode_toggle)
         self._last_selected_items_in_drag = items_in_current_drag_range
 
-    def on_tree_button_release(self):
+    def on_tree_button_release(self, event):
         self._drag_start_item = None
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
