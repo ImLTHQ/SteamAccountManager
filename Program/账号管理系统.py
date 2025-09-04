@@ -326,16 +326,16 @@ class AccountManagerApp:
             self.root.after(150, lambda: self._handle_single_click_copy(item_id, header_text))
 
     def _handle_single_click_copy(self, item_id, column_header_text):
-        if self._drag_start_item:
-            return
+        if self._drag_start_item: return
         account_obj = self.get_account_by_tree_id(item_id)
         if not account_obj: return
         if column_header_text == lang['columns']['account']:
             content_to_copy = account_obj['account']
         elif column_header_text == lang['columns']['password']:
             content_to_copy = account_obj['password']
-        else:
-            return
+        elif column_header_text == lang['columns']['others']:  # 添加others列复制支持
+            content_to_copy = account_obj.get('others', '')
+        else: return
         self.root.clipboard_clear()
         self.root.clipboard_append(content_to_copy)
         self.root.update()
@@ -699,7 +699,8 @@ class AccountManagerApp:
             account_obj['status'],
             account_obj['available_time'],
             account_obj['remarks'],
-            display_shortcut
+            display_shortcut,
+            account_obj.get('others', '')
         ), tags=(status_tag,))
 
     def populate_treeview(self, data_to_display=None):
@@ -779,7 +780,8 @@ class AccountManagerApp:
                 acc_data['status'],
                 acc_data['available_time'],
                 acc_data['remarks'],
-                display_shortcut
+                display_shortcut,
+                acc_data.get('others', '')
             ), tags=(status_tag,))
             
             acc_data['tree_id'] = tree_item_id
@@ -843,7 +845,7 @@ class AccountManagerApp:
         )
         self.filter_treeview()
 
-    def _add_new_account_entry(self, account, password):
+    def _add_new_account_entry(self, account, password, others=""):
         password = password.strip() # 去除首尾空格
     
         # 只检查账号是否已存在，不考虑密码
@@ -854,7 +856,8 @@ class AccountManagerApp:
                 'password': password,
                 'available_time': default_available_time,
                 'remarks': '',
-                'selected_state': False
+                'selected_state': False,
+                'others': others
             }
             self.accounts_data.append(new_acc)
             self.original_data.append(new_acc.copy())  # 添加到原始数据
@@ -874,13 +877,14 @@ class AccountManagerApp:
                 for line in f:
                     line = line.strip()
                     if "----" in line:
-                        parts = line.split("----")
-                        if len(parts) >= 2:
-                            account = parts[0].strip()
-                            password = parts[1].strip()
-                            if account and password:
-                                if self._add_new_account_entry(account, password):
-                                    new_accounts_count += 1
+                        # 最多分割两次，获取账号、密码和其它信息
+                        parts = line.split("----", 2)
+                        account = parts[0].strip()
+                        password = parts[1].strip() if len(parts) > 1 else ""
+                        others = parts[2].strip() if len(parts) > 2 else ""  # 新增others处理
+                        if account and password:
+                            if self._add_new_account_entry(account, password, others):  # 传入others
+                                new_accounts_count += 1
             if new_accounts_count > 0:
                 messagebox.showinfo(lang['import_success'], lang['imported_new_accounts'].format(count=new_accounts_count), parent=self.root)
                 self.filter_treeview()
@@ -897,8 +901,9 @@ class AccountManagerApp:
             if dialog.new_accounts_data:
                 new_accounts_count = 0
                 for acc_info in dialog.new_accounts_data:
-                    account, password = acc_info
-                    if self._add_new_account_entry(account, password):
+                    # 接收账号、密码和其它信息
+                    account, password, others = acc_info if len(acc_info) > 2 else (*acc_info, "")
+                    if self._add_new_account_entry(account, password, others):  # 传入others
                         new_accounts_count += 1
                 if new_accounts_count > 0:
                     messagebox.showinfo(lang['add_success'], lang['added_new_accounts'].format(count=new_accounts_count), parent=self.root)
@@ -935,6 +940,7 @@ class AccountManagerApp:
                 for entry in loaded_entries:
                     entry.setdefault('selected_state', False)
                     entry.setdefault('available_time', datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+                    entry.setdefault('others', '')
                     # 兼容数字和字符串
                     if isinstance(entry.get('remarks', ""), int):
                         entry['remarks'] = self.REMARKS_FROM_JSON.get(entry.get('remarks', 0), '')
@@ -1006,7 +1012,7 @@ class AccountManagerApp:
             acc for acc in self.accounts_data 
             if acc.get('selected_state', False)
         ]
-        
+    
         if not selected_accounts:
             messagebox.showinfo(lang['export_no_selected'], lang['export_no_accounts'])
             return
@@ -1016,14 +1022,16 @@ class AccountManagerApp:
         dialog = ExportMethodDialog(self.root)
         export_method = dialog.result
 
-        if not export_method:  # 用户取消选择
-            return
+        if not export_method: return
 
         # 收集选中账号的原始数据（使用真实密码）
-        export_data = [
-            f"{acc['account']}----{acc['password']}" 
-            for acc in selected_accounts
-        ]
+        export_data = []
+        for acc in selected_accounts:
+            # 有其它信息则导出三部分，否则只导出账号密码
+            if acc.get('others'):
+                export_data.append(f"{acc['account']}----{acc['password']}----{acc['others']}")
+            else:
+                export_data.append(f"{acc['account']}----{acc['password']}")
 
         # 根据选择的导出方式执行操作
         if export_method == "txt":
@@ -1032,8 +1040,7 @@ class AccountManagerApp:
                 defaultextension=".txt",
                 filetypes=[(lang['txt_file'], "*.txt"), ("All Files", "*.*")]
             )
-            if not file_path:
-                return
+            if not file_path: return
 
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
