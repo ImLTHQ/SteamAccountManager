@@ -178,10 +178,9 @@ class AddAccountDialog(simpledialog.Dialog):
     def apply(self):
         content = self.text_widget.get("1.0", tk.END).strip()
         self.new_accounts_data = []
+    
+        if not content: return
         
-        if not content:
-            return
-            
         for line in content.split("\n"):
             line = line.strip()
             if "----" in line:
