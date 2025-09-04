@@ -10,7 +10,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.0"
+version = "2.1"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -44,7 +44,7 @@ class AccountManagerApp:
         self._selection_mode_toggle = None
         self.remarks_sort_reverse = False
         self.sorting_state = {}  # 存放各列排序状态：None=未排序, False=升序, True=降序
-        self.show_passwords_var = tk.BooleanVar(value=False)
+        self.show_hidden_var = tk.BooleanVar(value=False)
         self.setup_ui()
         self._configure_treeview_style()
         self.load_data()
@@ -117,8 +117,8 @@ class AccountManagerApp:
         self.show_remarked_only_var = tk.BooleanVar()
         ttk.Checkbutton(search_frame, text=lang['show_remarked_only'], variable=self.show_remarked_only_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
-        # 添加显示密码复选框
-        ttk.Checkbutton(search_frame, text=lang.get('show_passwords', lang['show_passwords']), variable=self.show_passwords_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
+        # 添加显示隐藏复选框
+        ttk.Checkbutton(search_frame, text=lang['show_hidden'], variable=self.show_hidden_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
         # 删除按钮先不显示
         self.delete_btn = ttk.Button(search_frame, text=lang['delete_selected'], command=self.delete_selected)
@@ -673,10 +673,12 @@ class AccountManagerApp:
         except (ValueError, TypeError):
             display_shortcut = ""
             
-        # 处理密码显示
         password = account_obj['password']
-        if not self.show_passwords_var.get():
+        others = account_obj.get('others', '')
+
+        if not self.show_hidden_var.get():
             password = '*' * len(password)
+            others = '*' * len(others)
             
         # 找到当前项的索引
         index = 1  # 默认序号为1
@@ -700,7 +702,7 @@ class AccountManagerApp:
             account_obj['available_time'],
             account_obj['remarks'],
             display_shortcut,
-            account_obj.get('others', '')
+            others
         ), tags=(status_tag,))
 
     def populate_treeview(self, data_to_display=None):
@@ -745,10 +747,12 @@ class AccountManagerApp:
             acc_data.setdefault('remarks', '')
             display_shortcut = ""
             
-            # 处理密码显示
             password = acc_data['password']
-            if not self.show_passwords_var.get():
+            others = acc_data.get('others', '')
+
+            if not self.show_hidden_var.get():
                 password = '*' * len(password)
+                others = '*' * len(others)
             
             try:
                 available_dt = datetime.datetime.strptime(acc_data['available_time'], "%Y-%m-%d %H:%M")
@@ -781,7 +785,7 @@ class AccountManagerApp:
                 acc_data['available_time'],
                 acc_data['remarks'],
                 display_shortcut,
-                acc_data.get('others', '')
+                others
             ), tags=(status_tag,))
             
             acc_data['tree_id'] = tree_item_id
