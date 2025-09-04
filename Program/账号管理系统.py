@@ -10,7 +10,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "1.9.2"
+version = "2.0"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -322,7 +322,7 @@ class AccountManagerApp:
         # 移除箭头后再比较
         if header_text.endswith(self.SORT_ASC) or header_text.endswith(self.SORT_DESC):
             header_text = header_text[:-2]
-        if header_text in (lang['columns']['account'], lang['columns']['password']):
+        if header_text in (lang['columns']['account'], lang['columns']['password'], lang['columns']['others']):
             self.root.after(150, lambda: self._handle_single_click_copy(item_id, header_text))
 
     def _handle_single_click_copy(self, item_id, column_header_text):
