@@ -17,14 +17,14 @@ lang = LANGUAGES[current_lang]
 
 class AccountManagerApp:
     # 添加"序号"列作为第一列
-    COLUMNS = ("index", "select", "account", "password", "status", "available_time", "remarks", "shortcut")
+    COLUMNS = ("index", "select", "account", "password", "status", "available_time", "remarks", "shortcut", "others")
     COLUMN_WIDTHS = {
         "index": 25, "select": 50, "account": 100, "password": 100, "status": 70,
-        "available_time": 130, "remarks": 100, "shortcut": 100
+        "available_time": 120, "remarks": 100, "shortcut": 100, "others": 150
     }
     COLUMN_ANCHORS = {
         "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
-        "remarks": tk.CENTER, "shortcut": tk.CENTER
+        "remarks": tk.CENTER, "shortcut": tk.CENTER, "others": tk.CENTER
     }
     REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2, "Level 1": 1, "Level 2": 2}
     REMARKS_FROM_JSON = {0: "", 1: lang['remarks_options'][1], 2: lang['remarks_options'][2]}
@@ -35,7 +35,7 @@ class AccountManagerApp:
     def __init__(self, root_window):
         self.root = root_window
         self.root.title(lang['app_title'].format(version=version))
-        self.root.geometry("1000x600")
+        self.root.geometry("1200x600")
         self.accounts_data = []
         self.original_data = []  # 保存原始数据用于恢复未排序状态
         self.data_file = "accounts_data.json"
@@ -148,6 +148,7 @@ class AccountManagerApp:
         self.tree.heading("shortcut", text=lang['columns']["shortcut"], command=lambda: self.sort_by_column("shortcut"))
         self.tree.heading("account", text=lang['columns']["account"], command=lambda: self.sort_by_column("account"))
         self.tree.heading("status", text=lang['columns']["status"], command=lambda: self.sort_by_column("status"))
+        self.tree.heading("others", text=lang['columns']["others"], command=lambda: self.sort_by_column("others"))
         # 添加可用时间列的排序功能
         self.tree.heading("available_time", text=lang['columns']["available_time"], command=lambda: self.sort_by_column("available_time"))
         self.tree.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
@@ -375,7 +376,7 @@ class AccountManagerApp:
                 self._set_account_selection_state(acc, self._selection_mode_toggle)
         self._last_selected_items_in_drag = items_in_current_drag_range
 
-    def on_tree_button_release(self, _event):
+    def on_tree_button_release(self):
         self._drag_start_item = None
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
