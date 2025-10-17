@@ -2,9 +2,17 @@
 
 管理CS账号密码，备注账号信息，计算冷却时间
 
+# 即将推出
+
+1. 基于Qt的GUI
+
+2. 调用云存储
+
 # 使用前安装外部库
 
 - `pip install pypinyin`
+
+- `pip install pyqt5`
 
 # 打包说明
 
