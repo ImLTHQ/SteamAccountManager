@@ -10,7 +10,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.1.1"
+version = "2.1.2"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -536,24 +536,12 @@ class AccountManagerApp:
             command=lambda: self.apply_shortcut(account_obj, "delta", hours=20)
         )
         menu.add_command(
-            label=lang['shortcut_3d'], 
-            command=lambda: self.apply_shortcut(account_obj, "delta", days=3)
-        )
-        menu.add_command(
             label=lang['shortcut_7d'], 
             command=lambda: self.apply_shortcut(account_obj, "delta", days=7)
         )
         menu.add_command(
-            label=lang['shortcut_14d'], 
-            command=lambda: self.apply_shortcut(account_obj, "delta", days=14)
-        )
-        menu.add_command(
             label=lang['shortcut_31d'], 
             command=lambda: self.apply_shortcut(account_obj, "delta", days=31)
-        )
-        menu.add_command(
-            label=lang['shortcut_45d'], 
-            command=lambda: self.apply_shortcut(account_obj, "delta", days=45)
         )
         menu.add_command(
             label=lang['shortcut_181d'], 
