@@ -307,7 +307,7 @@ class AccountManagerApp:
                 for acc in self.accounts_data:
                     self._set_account_selection_state(acc, False)
             return
-        # 使用列索引判断第二列（“选择”列，序号列是第一列）
+        # 使用列索引判断第二列（"选择"列，序号列是第一列）
         if col == "#2":
             account_obj = self.get_account_by_tree_id(item_id)
             if account_obj:
@@ -317,12 +317,13 @@ class AccountManagerApp:
                 self._selection_mode_toggle = not current_state
                 self._last_selected_items_in_drag.add(item_id)
             return
-        # 其它列按原有逻辑处理（例如点击“账号”或“密码”进行复制）
+        # 其它列按原有逻辑处理（例如点击"账号"或"密码"进行复制）
         header_text = self.tree.heading(col)['text']
         # 移除箭头后再比较
         if header_text.endswith(self.SORT_ASC) or header_text.endswith(self.SORT_DESC):
             header_text = header_text[:-2]
-        if header_text in (lang['columns']['account'], lang['columns']['password'], lang['columns']['others']):
+        # 只在左键点击时复制（右键用于登录菜单）
+        if event.num == 1 and header_text in (lang['columns']['account'], lang['columns']['password'], lang['columns']['others']):
             self.root.after(150, lambda: self._handle_single_click_copy(item_id, header_text))
 
     def _handle_single_click_copy(self, item_id, column_header_text):
