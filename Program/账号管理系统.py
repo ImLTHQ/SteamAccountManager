@@ -141,7 +141,6 @@ class AccountManagerApp:
         buttons_data = [
             (lang['add_accounts'], self.add_account_dialog),
             (lang['export_selected'], self.export_txt),
-            (lang['check_cooldown_selected'], self.check_cooldown_selected),
             (lang['refresh'], self.refresh_treeview),
         ]
         for text, command in buttons_data:
@@ -167,11 +166,13 @@ class AccountManagerApp:
         # 添加显示隐藏复选框
         ttk.Checkbutton(search_frame, text=lang['show_hidden'], variable=self.show_hidden_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
-        # 删除按钮先不显示
+        # 删除按钮和查询VAC按钮先不显示
         self.delete_btn = ttk.Button(search_frame, text=lang['delete_selected'], command=self.delete_selected)
+        self.vac_btn = ttk.Button(search_frame, text=lang['check_cooldown_selected'], command=self.check_cooldown_selected)
         ttk.Button(search_frame, text=lang['select_all_toggle'], command=self.select_all_toggle).pack(side=tk.RIGHT, padx=5)
-        # 默认不显示删除按钮
+        # 默认不显示删除按钮和VAC按钮
         self.delete_btn.pack_forget()
+        self.vac_btn.pack_forget()
 
         # 批量备注下拉栏和按钮（默认隐藏）
         self.batch_remarks_var = tk.StringVar()
@@ -839,10 +840,12 @@ class AccountManagerApp:
         if selected_accounts:
             self.batch_remarks_combo.pack(side=tk.RIGHT, padx=5)
             self.batch_remarks_btn.pack(side=tk.RIGHT, padx=5)
+            self.vac_btn.pack(side=tk.RIGHT, padx=5)
             self.delete_btn.pack(side=tk.RIGHT, padx=5)
         else:
             self.batch_remarks_combo.pack_forget()
             self.batch_remarks_btn.pack_forget()
+            self.vac_btn.pack_forget()
             self.delete_btn.pack_forget()
         # 更新"选择"列的表头，显示选中的数量
         count = len(selected_accounts)
@@ -1276,14 +1279,6 @@ class AccountManagerApp:
         selected_accounts = [
             acc for acc in self.accounts_data if acc.get('selected_state', False)
         ]
-        if not selected_accounts:
-            messagebox.showinfo(
-                lang['check_cooldown_selected'],
-                lang['check_cooldown_no_accounts'],
-                parent=self.root
-            )
-            return
-
         accounts_to_check = [(acc['account'], acc['password']) for acc in selected_accounts]
 
         # 创建进度窗口
