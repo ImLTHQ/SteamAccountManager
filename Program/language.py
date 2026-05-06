@@ -156,7 +156,7 @@ LANGUAGES = {
         'check_cooldown_no_accounts': "Select account and retry",
         'check_cooldown_progress': "Checking",
         'check_cooldown_result': "Result",
-        'check_cooldown_vac': "VAC Ban",
+        'check_cooldown_vac': "VAC Banned",
         'check_cooldown_no_ban': "No Ban",
         'check_cooldown_cooldown': "Cooldown",
         'check_cooldown_fail': "Query Failed",
