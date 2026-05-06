@@ -34,8 +34,8 @@ class AccountManagerApp:
         "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
         "remarks": tk.CENTER, "shortcut": tk.CENTER, "others": tk.CENTER
     }
-    REMARKS_TO_JSON = {"": 0, "一级": 1, "二级": 2, "Level 1": 1, "Level 2": 2}
-    REMARKS_FROM_JSON = {0: "", 1: lang['remarks_options'][1], 2: lang['remarks_options'][2]}
+    REMARKS_TO_JSON = {"": 0}
+    REMARKS_FROM_JSON = {0: ""}
     # 排序箭头常量
     SORT_ASC = " ↑"  # 升序箭头
     SORT_DESC = " ↓" # 降序箭头
@@ -619,15 +619,6 @@ class AccountManagerApp:
         menu.add_separator()
         menu.add_command(
             label=lang['remarks_options'][1], 
-            command=lambda: self.set_remarks(account_obj, lang['remarks_options'][1])
-        )
-        menu.add_command(
-            label=lang['remarks_options'][2], 
-            command=lambda: self.set_remarks(account_obj, lang['remarks_options'][2])
-        )
-        menu.add_separator()
-        menu.add_command(
-            label=lang['custom_remark'], 
             command=lambda: self._custom_remarks(account_obj)
         )
 
@@ -886,8 +877,6 @@ class AccountManagerApp:
         self.remarks_sort_reverse = not getattr(self, "remarks_sort_reverse", False)
         remarks_order = {
             "": 0, 
-            lang['remarks_options'][1]: 1, 
-            lang['remarks_options'][2]: 2
         }
         self.accounts_data.sort(
             key=lambda acc: remarks_order.get(acc.get("remarks", ""), 0),
