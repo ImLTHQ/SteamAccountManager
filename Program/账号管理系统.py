@@ -5,12 +5,14 @@ import json
 import subprocess
 import winreg
 import os
+import threading
+import queue
 
 from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.1.3"
+version = "2.2"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -46,6 +48,8 @@ class AccountManagerApp:
         self.remarks_sort_reverse = False
         self.sorting_state = {}  # 存放各列排序状态：None=未排序, False=升序, True=降序
         self.show_hidden_var = tk.BooleanVar(value=False)
+        self._task_queue = queue.Queue()  # 后台任务队列
+        self._processing = False  # 是否正在处理任务
         self.setup_ui()
         self._configure_treeview_style()
         self.load_data()
@@ -55,6 +59,41 @@ class AccountManagerApp:
             print(f"Steam安装路径: {self.steam_path}")
         else:
             print("未检测到Steam安装路径")
+        # 启动后台任务处理器
+        self._process_task_queue()
+
+    def _queue_task(self, task_func, *args, **kwargs):
+        """将任务添加到后台队列"""
+        self._task_queue.put((task_func, args, kwargs))
+
+    def _process_task_queue(self):
+        """处理后台任务队列（在主线程中用after调用）"""
+        if self._processing:
+            self.root.after(50, self._process_task_queue)
+            return
+        try:
+            task_func, args, kwargs = self._task_queue.get_nowait()
+            self._processing = True
+            # 执行任务
+            result = task_func(*args, **kwargs)
+            # 任务完成后用after更新UI
+            self.root.after(10, lambda: self._on_task_complete(result))
+        except queue.Empty:
+            pass
+        # 继续监听队列
+        self.root.after(50, self._process_task_queue)
+
+    def _on_task_complete(self, result):
+        """任务完成后的回调（更新UI）"""
+        self._processing = False
+        if result and isinstance(result, dict):
+            if result.get('type') == 'import':
+                self.filter_treeview()
+                self.save_data()
+                messagebox.showinfo(lang['import_success'], lang['imported_new_accounts'].format(count=result.get('count', 0)), parent=self.root)
+            elif result.get('type') == 'save':
+                # 保存完成，不做额外操作
+                pass
 
     def get_steam_install_path(self):
         """从Windows注册表获取Steam安装路径"""
@@ -921,29 +960,66 @@ class AccountManagerApp:
             parent=self.root
         )
         if not filepath: return
+        # 在后台线程中执行导入
+        def import_worker():
+            try:
+                new_accounts_count = 0
+                accounts_to_add = []
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if "----" in line:
+                            parts = line.split("----", 2)
+                            account = parts[0].strip()
+                            password = parts[1].strip() if len(parts) > 1 else ""
+                            others = parts[2].strip() if len(parts) > 2 else ""
+                            if account and password:
+                                accounts_to_add.append((account, password, others))
+                # 收集完所有账号后，一次性添加到数据中
+                existing_accounts = {acc['account'] for acc in self.accounts_data}
+                for account, password, others in accounts_to_add:
+                    if account not in existing_accounts:
+                        default_available_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                        new_acc = {
+                            'account': account,
+                            'password': password,
+                            'available_time': default_available_time,
+                            'remarks': '',
+                            'selected_state': False,
+                            'others': others
+                        }
+                        self.accounts_data.append(new_acc)
+                        self.original_data.append(new_acc.copy())
+                        new_accounts_count += 1
+                        existing_accounts.add(account)
+                return {'type': 'import', 'count': new_accounts_count}
+            except Exception as e:
+                return {'type': 'error', 'error': str(e)}
+        # 使用结果队列获取线程返回值
+        result_queue = queue.Queue()
+        def run_in_thread():
+            result = import_worker()
+            result_queue.put(result)
+            # 在主线程中更新UI
+            self.root.after(10, lambda: self._finish_import(result_queue))
+        threading.Thread(target=run_in_thread, daemon=True).start()
+
+    def _finish_import(self, result_queue):
+        """在主线程中完成导入并更新UI"""
         try:
-            new_accounts_count = 0
-            with open(filepath, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if "----" in line:
-                        # 最多分割两次，获取账号、密码和其它信息
-                        parts = line.split("----", 2)
-                        account = parts[0].strip()
-                        password = parts[1].strip() if len(parts) > 1 else ""
-                        others = parts[2].strip() if len(parts) > 2 else ""  # 新增others处理
-                        if account and password:
-                            if self._add_new_account_entry(account, password, others):  # 传入others
-                                new_accounts_count += 1
-            if new_accounts_count > 0:
-                messagebox.showinfo(lang['import_success'], lang['imported_new_accounts'].format(count=new_accounts_count), parent=self.root)
+            result = result_queue.get_nowait()
+            if result.get('type') == 'error':
+                messagebox.showerror(lang['import_error'], lang['import_failed'].format(error=result.get('error', '')), parent=self.root)
+            elif result.get('count', 0) > 0:
+                messagebox.showinfo(lang['import_success'], lang['imported_new_accounts'].format(count=result['count']), parent=self.root)
                 self.filter_treeview()
                 self.save_data()
             else:
                 messagebox.showinfo(lang['import_txt'], lang['import_no_new'], parent=self.root)
                 self.filter_treeview()
-        except Exception as e:
-            messagebox.showerror(lang['import_error'], lang['import_failed'].format(error=e), parent=self.root)
+        except queue.Empty:
+            # 如果队列为空，稍后再试
+            self.root.after(50, lambda: self._finish_import(result_queue))
 
     def add_account_dialog(self):
         dialog = AddAccountDialog(self.root, lang['add_accounts'], self.import_txt)
@@ -962,24 +1038,43 @@ class AccountManagerApp:
                     messagebox.showinfo(lang['manual_add'], lang['add_no_new'], parent=self.root)
                 self.filter_treeview()
 
-    def save_data(self):
+    def save_data(self, on_complete=None):
+        """保存数据到文件，使用后台线程避免UI卡顿"""
+        # 准备数据（在主线程快速完成）
         data_to_save = []
-        for acc in self.original_data:  # 保存原始数据
+        for acc in self.original_data:
             acc_copy = acc.copy()
             acc_copy.pop('tree_id', None)
             acc_copy.pop('selected_state', None)
             acc_copy.pop('status', None)
-            # 判断备注内容
             if acc_copy['remarks'] in self.REMARKS_TO_JSON:
                 acc_copy['remarks'] = self.REMARKS_TO_JSON[acc_copy['remarks']]
-            else:
-                acc_copy['remarks'] = acc_copy['remarks']  # 其它内容直接存字符串
             data_to_save.append(acc_copy)
+        # 在后台线程中执行文件写入
+        def save_worker():
+            try:
+                with open(self.data_file, 'w', encoding='utf-8') as f:
+                    json.dump(data_to_save, f, ensure_ascii=False, indent=4)
+                return {'type': 'save', 'success': True}
+            except Exception as e:
+                return {'type': 'save', 'success': False, 'error': str(e)}
+        result_queue = queue.Queue()
+        def run_in_thread():
+            result = save_worker()
+            result_queue.put(result)
+            self.root.after(10, lambda: self._finish_save(result_queue, on_complete))
+        threading.Thread(target=run_in_thread, daemon=True).start()
+
+    def _finish_save(self, result_queue, on_complete=None):
+        """在主线程中处理保存结果"""
         try:
-            with open(self.data_file, 'w', encoding='utf-8') as f:
-                json.dump(data_to_save, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            messagebox.showerror(lang['save_failed'], lang['save_error'].format(error=e), parent=self.root)
+            result = result_queue.get_nowait()
+            if not result.get('success'):
+                messagebox.showerror(lang['save_failed'], lang['save_error'].format(error=result.get('error', '')), parent=self.root)
+            elif on_complete:
+                on_complete()
+        except queue.Empty:
+            self.root.after(50, lambda: self._finish_save(result_queue, on_complete))
 
     def load_data(self):
         try:
@@ -1128,15 +1223,23 @@ class AccountManagerApp:
         ]
         if not selected_accounts:
             return
-            
+
         remark_text = self.batch_remarks_var.get()
         if remark_text == lang['remarks_options'][0]:
             remark_text = ""
-            
-        for acc in selected_accounts:
-            self.set_remarks(acc, remark_text)
-        
+
+        # 批量设置备注，只更新UI和保存一次
+        account_set = {acc['account'] for acc in selected_accounts}
+        for acc in self.accounts_data:
+            if acc['account'] in account_set:
+                acc['remarks'] = remark_text
+        for orig_acc in self.original_data:
+            if orig_acc['account'] in account_set:
+                orig_acc['remarks'] = remark_text
+
         self.batch_remarks_var.set("")
+        self.filter_treeview()
+        self.save_data()
         messagebox.showinfo(lang['batch_remark_success'], lang['batch_remark_msg'].format(count=len(selected_accounts), remark=remark_text), parent=self.root)
 
 if __name__ == '__main__':
