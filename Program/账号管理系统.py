@@ -42,6 +42,7 @@ class AccountManagerApp:
         self._drag_start_item = None
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
+        self._auto_scroll_timer_job = None  # 自动滚动检测定时器
         self.remarks_sort_reverse = False
         self.sorting_state = {}  # 存放各列排序状态：None=未排序, False=升序, True=降序
         self.show_hidden_var = tk.BooleanVar(value=False)
@@ -160,6 +161,8 @@ class AccountManagerApp:
         self.tree.bind("<ButtonRelease-1>", self.on_tree_button_release)
         self.tree.bind("<Button-3>", self.on_tree_right_click)
         self.tree.bind("<Double-1>", self.on_tree_double_click)
+        # 在root窗口上绑定鼠标移动事件，用于拖动选择时检测窗口外的鼠标位置
+        self.root.bind("<B1-Motion>", self.on_root_drag_motion)
         # 添加Github信息标签
         github_label = ttk.Label(self.root, text=lang['github_label'], font=("Arial", 10))
         github_label.pack(side=tk.RIGHT)
@@ -316,6 +319,8 @@ class AccountManagerApp:
                 self._drag_start_item = item_id
                 self._selection_mode_toggle = not current_state
                 self._last_selected_items_in_drag.add(item_id)
+                # 启动自动滚动检测定时器
+                self._start_auto_scroll_timer()
             return
         # 其它列按原有逻辑处理（例如点击"账号"或"密码"进行复制）
         header_text = self.tree.heading(col)['text']
@@ -377,10 +382,62 @@ class AccountManagerApp:
                 self._set_account_selection_state(acc, self._selection_mode_toggle)
         self._last_selected_items_in_drag = items_in_current_drag_range
 
+
+    def _start_auto_scroll_timer(self):
+        """启动自动滚动检测定时器"""
+        if self._drag_start_item and not self._auto_scroll_timer_job:
+            self._auto_scroll_timer_job = self.root.after(50, self._check_mouse_position_for_scroll)
+
+    def _check_mouse_position_for_scroll(self):
+        """定时检测鼠标位置并执行自动滚动"""
+        if not self._drag_start_item:
+            self._auto_scroll_timer_job = None
+            return
+        
+        # 获取鼠标当前位置
+        mouse_y = self.root.winfo_pointery()
+        
+        # tree的y坐标范围
+        tree_y = self.tree.winfo_rooty()
+        tree_bottom = tree_y + self.tree.winfo_height()
+        
+        should_continue = False
+        if mouse_y > tree_bottom:
+            # 鼠标在窗口下方，向下滚动
+            distance = mouse_y - tree_bottom
+            scroll_amount = 1 + int(distance * 0.04)
+            scroll_amount = min(scroll_amount, 4)
+            self.tree.yview_scroll(scroll_amount, "units")
+            should_continue = True
+        elif mouse_y < tree_y:
+            # 鼠标在窗口上方，向上滚动
+            distance = tree_y - mouse_y
+            scroll_amount = 1 + int(distance * 0.04)
+            scroll_amount = min(scroll_amount, 4)
+            self.tree.yview_scroll(-scroll_amount, "units")
+            should_continue = True
+        
+        if should_continue:
+            # 继续定时检测
+            self._auto_scroll_timer_job = self.root.after(50, self._check_mouse_position_for_scroll)
+        else:
+            # 鼠标回到窗口内，停止本次定时
+            self._auto_scroll_timer_job = None
+
+    def on_root_drag_motion(self, event):
+        """root窗口上的拖动移动事件，用于检测鼠标在窗口外时的位置"""
+        if self._drag_start_item and not self._auto_scroll_timer_job:
+            # 如果正在拖动但没有定时器在运行，启动检测
+            self._start_auto_scroll_timer()
+
     def on_tree_button_release(self, event):
         self._drag_start_item = None
         self._last_selected_items_in_drag = set()
         self._selection_mode_toggle = None
+        # 停止自动滚动定时器
+        if self._auto_scroll_timer_job:
+            self.root.after_cancel(self._auto_scroll_timer_job)
+            self._auto_scroll_timer_job = None
 
     def on_tree_double_click(self, event):
         item_id = self.tree.identify_row(event.y)
