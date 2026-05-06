@@ -4,25 +4,40 @@ import asyncio
 
 BATCH_SIZE = 5  # 每批并发数
 BATCH_DELAY = 3  # 批次间等待秒数
+RETRY_COUNT = 3  # 超时重试次数
 
 async def check(username, password):
-    steam = Steam(username, password)
-    await steam.login_to_steam()
+    for attempt in range(RETRY_COUNT):
+        try:
+            steam = Steam(username, password)
+            await steam.login_to_steam()
 
-    # 检查VAC冷却时间
-    r = await steam.request(
-        "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
-    )
-    soup = BeautifulSoup(r, "html.parser")
-    if t := soup.select_one(".help_game_cooldown_expirationtime"):
-        return f"{username}: 冷却结束时间: {t.text.strip()}"
+            async def get_with_retry(url):
+                try:
+                    return await steam.request(url)
+                except:
+                    raise
 
-    # 检查VAC状态
-    r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
+            # 检查VAC冷却时间
+            r = await get_with_retry(
+                "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
+            )
+            soup = BeautifulSoup(r, "html.parser")
+            if t := soup.select_one(".help_game_cooldown_expirationtime"):
+                return f"[{username}] 冷却结束时间 {t.text.strip()}"
 
-    if "Counter-Strike 2" in r_vac:
-        return f"{username}: VAC封禁"
-    return f"{username}: 无封禁"
+            # 检查VAC状态
+            r_vac = await get_with_retry("https://help.steampowered.com/zh-cn/wizard/VacBans")
+
+            if "Counter-Strike 2" in r_vac:
+                return f"[{username}] VAC封禁"
+            return f"[{username}] 无封禁"
+        except:
+            if attempt < RETRY_COUNT - 1:
+                print(f"[{username}] 第 {attempt + 1}/{RETRY_COUNT} 次失败，{BATCH_DELAY}秒后重试")
+                await asyncio.sleep(BATCH_DELAY)
+            else:
+                return f"[{username}] 重试{RETRY_COUNT}次仍失败"
 
 accounts = [
     ("rpifk19283", "chdw43041O"),# 带冷却
@@ -41,6 +56,5 @@ async def main():
             print(r)
         if i + batch_size < len(accounts):
             await asyncio.sleep(BATCH_DELAY)
-
 
 asyncio.run(main())
