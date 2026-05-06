@@ -13,6 +13,7 @@
 # 使用前安装外部库
 
 - `pip install pypinyin`
+- `pip install pysteamauth`
 
 # 打包说明
 

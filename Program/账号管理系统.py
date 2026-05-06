@@ -1300,17 +1300,13 @@ class AccountManagerApp:
         # 创建进度窗口
         progress_win = tk.Toplevel(self.root)
         progress_win.title(lang['check_cooldown_progress'])
-        progress_win.geometry("400x200")
+        progress_win.geometry("380x60")
         progress_win.resizable(False, False)
         progress_win.transient(self.root)
         progress_win.grab_set()
 
-        progress_label = ttk.Label(progress_win, text=lang['check_cooldown_progress'])
-        progress_label.pack(pady=10)
         progress_bar = ttk.Progressbar(progress_win, length=350, mode='determinate', maximum=len(accounts_to_check))
-        progress_bar.pack(pady=5)
-        status_label = ttk.Label(progress_win, text="")
-        status_label.pack(pady=5)
+        progress_bar.pack(pady=15)
 
         result_queue = queue.Queue()
 
@@ -1341,15 +1337,7 @@ class AccountManagerApp:
                     if msg[0] == 'progress':
                         _, done, _total, username, result = msg
                         progress_bar['value'] = done
-                        status_text = f"{username}: "
-                        if result['type'] == 'cooldown':
-                            status_text += result['time']
-                        elif result['type'] == 'vac':
-                            status_text += lang['check_cooldown_vac']
-                        elif result['type'] == 'no_ban':
-                            status_text += lang['check_cooldown_no_ban']
-                        else:
-                            status_text += lang['check_cooldown_fail']
+                        if result['type'] != 'cooldown' and result['type'] != 'vac' and result['type'] != 'no_ban':
                             # 查询失败立即弹窗提示
                             progress_win.destroy()
                             messagebox.showerror(
@@ -1358,7 +1346,6 @@ class AccountManagerApp:
                                 parent=self.root
                             )
                             return
-                        status_label.config(text=status_text)
                     elif msg[0] == 'done':
                         progress_win.destroy()
                         self._apply_cooldown_results(msg[1], selected_accounts)
