@@ -2,6 +2,8 @@ from pysteamauth.auth import Steam
 from bs4 import BeautifulSoup
 import asyncio
 
+BATCH_SIZE = 5  # 每批并发数
+BATCH_DELAY = 3  # 批次间等待秒数
 
 async def check(username, password):
     steam = Steam(username, password)
@@ -13,28 +15,32 @@ async def check(username, password):
     )
     soup = BeautifulSoup(r, "html.parser")
     if t := soup.select_one(".help_game_cooldown_expirationtime"):
-        print("冷却结束时间:", t.text.strip())
+        return f"{username}: 冷却结束时间: {t.text.strip()}"
 
-    elif soup.select_one("#error_description"):
-        r_vac = await steam.request(
-            "https://help.steampowered.com/zh-cn/wizard/HelpWithGame/?appid=730&issueid=122"
-        )
-        soup_vac = BeautifulSoup(r_vac, "html.parser")
-        if "VAC" in soup_vac.get_text("VAC"):
-            print("找到")
-        else:
-            print("未找到")
+    # 检查VAC状态
+    r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
+
+    if "Counter-Strike 2" in r_vac:
+        return f"{username}: VAC封禁"
+    return f"{username}: 无封禁"
 
 accounts = [
-    ("dpkzi45933", "gybf85950A"),# 带冷却
-    ("lnceg06150", "oous39232G"),# VAC
+    ("rpifk19283", "chdw43041O"),# 带冷却
+    ("vnhba91594", "VF1911148"),# VAC
     ("baqfy09619", "fltf86954H"),# 新号
 ]
 
 
 async def main():
-    tasks = [check(u, p) for u, p in accounts]
-    await asyncio.gather(*tasks)
+    batch_size = 5
+    for i in range(0, len(accounts), BATCH_SIZE):
+        batch = accounts[i : i + BATCH_SIZE]
+        tasks = [check(u, p) for u, p in batch]
+        results = await asyncio.gather(*tasks)
+        for r in results:
+            print(r)
+        if i + batch_size < len(accounts):
+            await asyncio.sleep(BATCH_DELAY)
 
 
 asyncio.run(main())
