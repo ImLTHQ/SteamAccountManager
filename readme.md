@@ -4,15 +4,15 @@
 
 # 即将推出
 
-1. 基于Qt的GUI
+1. 更优美的界面
 
-2. 调用云存储
+2. 云存储
+
+3. 批量查询冷却/VAC+更改主页资料头像
 
 # 使用前安装外部库
 
 - `pip install pypinyin`
-
-- `pip install pyqt5`
 
 # 打包说明
 
@@ -25,9 +25,3 @@
 - `pyinstaller --noconsole --onefile ./Program/账号管理系统.py`
 
 - `dist/` 目录：存放最终生成的可执行文件
-
-# git走代理
-
-- 设置代理`git config --global http.proxy http://127.0.0.1:6666`
-
-- 取消代理`git config --global --unset http.proxy`
