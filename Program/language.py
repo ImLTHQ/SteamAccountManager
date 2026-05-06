@@ -71,7 +71,6 @@ LANGUAGES = {
         'login_account': '登录此账号',
 
         'check_cooldown_selected': "查询VAC",
-        'check_cooldown_no_selected': "查询VAC",
         'check_cooldown_no_accounts': "请选择账号重试",
         'check_cooldown_progress': "查询中",
         'check_cooldown_result': "查询结果",
@@ -79,7 +78,6 @@ LANGUAGES = {
         'check_cooldown_no_ban': "无封禁",
         'check_cooldown_cooldown': "冷却中",
         'check_cooldown_fail': "查询失败",
-        'check_cooldown_fail_title': "查询失败",
         'check_cooldown_fail_msg': "请尝试VPN/TUN代理/路由模式游戏加速器",
         'check_cooldown_retry_fail': "重试{count}次仍失败(请尝试VPN/TUN代理/路由模式游戏加速器)",
     },
@@ -155,7 +153,6 @@ LANGUAGES = {
         'login_account': 'Login Account',
 
         'check_cooldown_selected': "Check VAC",
-        'check_cooldown_no_selected': "Check VAC",
         'check_cooldown_no_accounts': "Select account and retry",
         'check_cooldown_progress': "Checking",
         'check_cooldown_result': "Result",
@@ -163,7 +160,6 @@ LANGUAGES = {
         'check_cooldown_no_ban': "No Ban",
         'check_cooldown_cooldown': "Cooldown",
         'check_cooldown_fail': "Query Failed",
-        'check_cooldown_fail_title': "Query Failed",
         'check_cooldown_fail_msg': "Try VPN/TUN proxy/router-mode game accelerator",
         'check_cooldown_retry_fail': "{count} retries failed (try VPN/TUN proxy/router-mode game accelerator)",
     }

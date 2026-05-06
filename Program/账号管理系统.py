@@ -1289,7 +1289,7 @@ class AccountManagerApp:
         ]
         if not selected_accounts:
             messagebox.showinfo(
-                lang['check_cooldown_no_selected'],
+                lang['check_cooldown_selected'],
                 lang['check_cooldown_no_accounts'],
                 parent=self.root
             )
@@ -1341,7 +1341,7 @@ class AccountManagerApp:
                             # 查询失败立即弹窗提示
                             progress_win.destroy()
                             messagebox.showerror(
-                                lang['check_cooldown_fail_title'],
+                                lang['check_cooldown_fail'],
                                 lang['check_cooldown_fail_msg'],
                                 parent=self.root
                             )
@@ -1361,16 +1361,6 @@ class AccountManagerApp:
 
     def _apply_cooldown_results(self, results, selected_accounts):
         """将查询结果应用到账号数据中"""
-        # 检查是否有失败的查询，如果有则弹窗提示并中断
-        fail_count = sum(1 for r in results.values() if r['type'] == 'fail')
-        if fail_count > 0:
-            messagebox.showerror(
-                lang['check_cooldown_fail_title'],
-                lang['check_cooldown_fail_msg'],
-                parent=self.root
-            )
-            return
-
         for acc in selected_accounts:
             username = acc['account']
             result = results.get(username)
