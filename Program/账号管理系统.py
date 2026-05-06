@@ -1386,6 +1386,15 @@ class AccountManagerApp:
                         orig_acc['available_time'] = "VAC"
                         orig_acc['status'] = lang['status_unavailable']
                         break
+            elif result['type'] == 'cooldown':
+                # 冷却中：保存冷却时间
+                acc['available_time'] = result['time']
+                acc['status'] = lang['status_unavailable']
+                for orig_acc in self.original_data:
+                    if orig_acc['account'] == username:
+                        orig_acc['available_time'] = result['time']
+                        orig_acc['status'] = lang['status_unavailable']
+                        break
             elif result['type'] == 'no_ban':
                 # 无封禁：设为当前时间（立即可用）
                 now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -1400,13 +1409,16 @@ class AccountManagerApp:
         self.filter_treeview()
         self.save_data()
 
-        # 生成结果摘要（只显示VAC封禁和无封禁）
+        # 生成结果摘要
         vac_count = sum(1 for r in results.values() if r['type'] == 'vac')
+        cooldown_count = sum(1 for r in results.values() if r['type'] == 'cooldown')
         no_ban_count = sum(1 for r in results.values() if r['type'] == 'no_ban')
 
         summary_lines = []
         if vac_count > 0:
             summary_lines.append(f"{lang['check_cooldown_vac']}: {vac_count}")
+        if cooldown_count > 0:
+            summary_lines.append(f"{lang['check_cooldown_cooldown']}: {cooldown_count}")
         if no_ban_count > 0:
             summary_lines.append(f"{lang['check_cooldown_no_ban']}: {no_ban_count}")
 
