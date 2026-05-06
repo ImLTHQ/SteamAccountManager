@@ -189,7 +189,7 @@ class AccountManagerApp:
         self.tree.heading("account", text=lang['columns']["account"], command=lambda: self.sort_by_column("account"))
         self.tree.heading("status", text=lang['columns']["status"], command=lambda: self.sort_by_column("status"))
         self.tree.heading("others", text=lang['columns']["others"], command=lambda: self.sort_by_column("others"))
-        # 添加可用时间列的排序功能
+        # 添加冷却结束时间列的排序功能
         self.tree.heading("available_time", text=lang['columns']["available_time"], command=lambda: self.sort_by_column("available_time"))
         self.tree.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
@@ -256,7 +256,7 @@ class AccountManagerApp:
                 # 直接返回拼音首字母排序
                 return get_pinyin_initial_abbr(remark)
         elif column == "shortcut":
-            # 根据可用时间排序
+            # 根据冷却结束时间排序
             def key_func(acc):
                 try:
                     dt = datetime.datetime.strptime(acc.get("available_time", ""), "%Y-%m-%d %H:%M")
@@ -271,7 +271,7 @@ class AccountManagerApp:
                 status = acc.get("status", "")
                 return 0 if status == lang['status_available'] else 1
         elif column == "available_time":
-            # 按可用时间排序
+            # 按冷却结束时间排序
             def key_func(acc):
                 try:
                     # 将时间字符串转换为datetime对象进行比较
@@ -606,9 +606,9 @@ class AccountManagerApp:
         )
 
     def _modify_available_time(self, account_obj):
-        # 修改账号的可用时间
+        # 修改账号的冷却结束时间
         try:
-            # 解析当前可用时间
+            # 解析当前冷却结束时间
             current_time = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
         except (ValueError, TypeError):
             # 如果解析失败，使用当前时间
@@ -617,7 +617,7 @@ class AccountManagerApp:
         # 显示日期时间对话框
         dlg = DateTimeDialog(self.root, lang['modify_available_time'], current_time)
         if dlg.result:
-            # 更新可用时间
+            # 更新冷却结束时间
             self._update_account_status_and_time(account_obj, dlg.result)
             self.filter_treeview()
             self.save_data()
