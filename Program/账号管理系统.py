@@ -7,12 +7,18 @@ import winreg
 import os
 import threading
 import queue
+import asyncio
+import re
+
+import pytz
+from pysteamauth.auth import Steam
+from bs4 import BeautifulSoup
 
 from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.2"
+version = "2.3"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -135,6 +141,7 @@ class AccountManagerApp:
         buttons_data = [
             (lang['add_accounts'], self.add_account_dialog),
             (lang['export_selected'], self.export_txt),
+            (lang['check_cooldown_selected'], self.check_cooldown_selected),
             (lang['refresh'], self.refresh_treeview),
         ]
         for text, command in buttons_data:
@@ -256,10 +263,13 @@ class AccountManagerApp:
                 # 直接返回拼音首字母排序
                 return get_pinyin_initial_abbr(remark)
         elif column == "shortcut":
-            # 根据冷却结束时间排序
+            # 根据冷却结束时间排序，VAC封禁排最后
             def key_func(acc):
+                at = acc.get("available_time", "")
+                if at == "VAC":
+                    return datetime.datetime.max
                 try:
-                    dt = datetime.datetime.strptime(acc.get("available_time", ""), "%Y-%m-%d %H:%M")
+                    dt = datetime.datetime.strptime(at, "%Y-%m-%d %H:%M")
                 except Exception:
                     dt = datetime.datetime.min
                 return dt
@@ -271,13 +281,14 @@ class AccountManagerApp:
                 status = acc.get("status", "")
                 return 0 if status == lang['status_available'] else 1
         elif column == "available_time":
-            # 按冷却结束时间排序
+            # 按冷却结束时间排序，VAC封禁排最后
             def key_func(acc):
+                at = acc.get("available_time", "")
+                if at == "VAC":
+                    return datetime.datetime.max
                 try:
-                    # 将时间字符串转换为datetime对象进行比较
-                    dt = datetime.datetime.strptime(acc.get("available_time", ""), "%Y-%m-%d %H:%M")
+                    dt = datetime.datetime.strptime(at, "%Y-%m-%d %H:%M")
                 except Exception:
-                    # 转换失败的时间视为最小时间
                     dt = datetime.datetime.min
                 return dt
         else:
@@ -600,12 +611,18 @@ class AccountManagerApp:
 
     # 重构：将各列的菜单选项拆分为单独的方法
     def _add_available_time_menu_items(self, menu, account_obj):
+        # VAC封禁时不显示修改冷却结束时间选项
+        if account_obj.get('available_time') == "VAC":
+            return
         menu.add_command(
             label=lang['modify_available_time'], 
             command=lambda: self._modify_available_time(account_obj)
         )
 
     def _modify_available_time(self, account_obj):
+        # VAC封禁时不允许修改
+        if account_obj.get('available_time') == "VAC":
+            return
         # 修改账号的冷却结束时间
         try:
             # 解析当前冷却结束时间
@@ -623,6 +640,9 @@ class AccountManagerApp:
             self.save_data()
 
     def _add_shortcut_menu_items(self, menu, account_obj):
+        # VAC封禁时不显示冷却时间快捷选项
+        if account_obj.get('available_time') == "VAC":
+            return
         menu.add_command(
             label=lang['immediately_available'], 
             command=lambda: self.apply_shortcut(account_obj, "reset")
@@ -697,6 +717,15 @@ class AccountManagerApp:
         self.save_data()
 
     def _update_account_status_and_time(self, account_obj, new_available_time_dt=None):
+        if account_obj.get('available_time') == "VAC":
+            # VAC封禁状态，保持不可用
+            account_obj['status'] = lang['status_unavailable']
+            for orig_acc in self.original_data:
+                if orig_acc['account'] == account_obj['account']:
+                    orig_acc['status'] = account_obj['status']
+                    break
+            return
+
         if new_available_time_dt is None:
             try:
                 available_dt = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
@@ -715,6 +744,9 @@ class AccountManagerApp:
                 break
 
     def apply_shortcut(self, account_obj, action_type, hours=0, days=0):
+        # VAC封禁时不允许快捷操作
+        if account_obj.get('available_time') == "VAC":
+            return
         now = datetime.datetime.now()
         new_available_time_dt = None
         if action_type == "reset":
@@ -733,30 +765,37 @@ class AccountManagerApp:
         status_tag = account_obj['status']
         account_obj.setdefault('remarks', '')
         display_shortcut = ""
-        try:
-            available_dt = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
-            now = datetime.datetime.now()
-            if available_dt > now:
-                time_left = available_dt - now
-                days = time_left.days
-                seconds_in_hour = 3600
-                hours = time_left.seconds // seconds_in_hour
-                
-                # 根据语言和数量选择正确的单复数形式
-                day_unit = lang['day'] if days == 1 else lang['days']
-                hour_unit = lang['hour'] if hours == 1 else lang['hours']
-                
-                if days > 0:
-                    if hours > 0:
-                        display_shortcut = f"{days} {day_unit} {hours} {hour_unit}"
+        display_available_time = account_obj['available_time']
+
+        # 处理VAC封禁显示
+        if account_obj['available_time'] == "VAC":
+            display_available_time = lang['check_cooldown_vac']
+            display_shortcut = lang['check_cooldown_vac']
+        else:
+            try:
+                available_dt = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
+                now = datetime.datetime.now()
+                if available_dt > now:
+                    time_left = available_dt - now
+                    days = time_left.days
+                    seconds_in_hour = 3600
+                    hours = time_left.seconds // seconds_in_hour
+                    
+                    # 根据语言和数量选择正确的单复数形式
+                    day_unit = lang['day'] if days == 1 else lang['days']
+                    hour_unit = lang['hour'] if hours == 1 else lang['hours']
+                    
+                    if days > 0:
+                        if hours > 0:
+                            display_shortcut = f"{days} {day_unit} {hours} {hour_unit}"
+                        else:
+                            display_shortcut = f"{days} {day_unit}"
+                    elif hours > 0:
+                        display_shortcut = f"{hours} {hour_unit}"
                     else:
-                        display_shortcut = f"{days} {day_unit}"
-                elif hours > 0:
-                    display_shortcut = f"{hours} {hour_unit}"
-                else:
-                    display_shortcut = lang['less_than_one_hour']
-        except (ValueError, TypeError):
-            display_shortcut = ""
+                        display_shortcut = lang['less_than_one_hour']
+            except (ValueError, TypeError):
+                display_shortcut = ""
             
         password = account_obj['password']
         others = account_obj.get('others', '')
@@ -784,7 +823,7 @@ class AccountManagerApp:
             account_obj['account'],
             password,
             account_obj['status'],
-            account_obj['available_time'],
+            display_available_time,
             account_obj['remarks'],
             display_shortcut,
             others
@@ -831,6 +870,7 @@ class AccountManagerApp:
             status_tag = acc_data['status']
             acc_data.setdefault('remarks', '')
             display_shortcut = ""
+            display_available_time = acc_data['available_time']
             
             password = acc_data['password']
             others = acc_data.get('others', '')
@@ -839,26 +879,31 @@ class AccountManagerApp:
                 password = '*' * len(password)
                 others = '*' * len(others)
             
-            try:
-                available_dt = datetime.datetime.strptime(acc_data['available_time'], "%Y-%m-%d %H:%M")
-                now = datetime.datetime.now()
-                if available_dt > now:
-                    time_left = available_dt - now
-                    days = time_left.days
-                    seconds_in_hour = 3600
-                    hours = time_left.seconds // seconds_in_hour
-                    
-                    day_unit = lang['day'] if days == 1 else lang['days']
-                    hour_unit = lang['hour'] if hours == 1 else lang['hours']
-                    
-                    if days > 0:
-                        display_shortcut = f"{days} {day_unit} {hours} {hour_unit}" if hours > 0 else f"{days} {day_unit}"
-                    elif hours > 0:
-                        display_shortcut = f"{hours} {hour_unit}"
-                    else:
-                        display_shortcut = lang['less_than_one_hour']
-            except (ValueError, TypeError):
-                display_shortcut = ""
+            # 处理VAC封禁显示
+            if acc_data['available_time'] == "VAC":
+                display_available_time = lang['check_cooldown_vac']
+                display_shortcut = lang['check_cooldown_vac']
+            else:
+                try:
+                    available_dt = datetime.datetime.strptime(acc_data['available_time'], "%Y-%m-%d %H:%M")
+                    now = datetime.datetime.now()
+                    if available_dt > now:
+                        time_left = available_dt - now
+                        days = time_left.days
+                        seconds_in_hour = 3600
+                        hours = time_left.seconds // seconds_in_hour
+                        
+                        day_unit = lang['day'] if days == 1 else lang['days']
+                        hour_unit = lang['hour'] if hours == 1 else lang['hours']
+                        
+                        if days > 0:
+                            display_shortcut = f"{days} {day_unit} {hours} {hour_unit}" if hours > 0 else f"{days} {day_unit}"
+                        elif hours > 0:
+                            display_shortcut = f"{hours} {hour_unit}"
+                        else:
+                            display_shortcut = lang['less_than_one_hour']
+                except (ValueError, TypeError):
+                    display_shortcut = ""
             
             # 插入实际数据行（使用连续序号）
             tree_item_id = self.tree.insert("", tk.END, values=(
@@ -867,7 +912,7 @@ class AccountManagerApp:
                 acc_data['account'],
                 password,
                 acc_data['status'],
-                acc_data['available_time'],
+                display_available_time,
                 acc_data['remarks'],
                 display_shortcut,
                 others
@@ -1216,6 +1261,260 @@ class AccountManagerApp:
                     lang['export_failed'].format(error=str(e))
                 )
 
+
+    # ========== 冷却/VAC查询 ==========
+
+    BATCH_SIZE = 5
+    BATCH_DELAY = 3
+    RETRY_COUNT = 3
+
+    @staticmethod
+    def _parse_steam_time_to_local(html, cooldown_text):
+        """将Steam页面显示的冷却时间（太平洋时间）转换为本地时区"""
+        match = re.search(r'g_ServerTime\s*=\s*(\d+)', html)
+        if not match:
+            return cooldown_text
+
+        server_timestamp = int(match.group(1))
+        server_time = datetime.datetime.fromtimestamp(server_timestamp, tz=datetime.timezone.utc)
+
+        pacific = pytz.timezone('US/Pacific')
+
+        try:
+            server_pacific = server_time.astimezone(pacific)
+            _ = bool(server_pacific.dst())  # 验证夏令时状态可用
+        except Exception:
+            server_pacific = server_time.astimezone(pacific)
+
+        steam_match = re.match(r'(\d+)\s*月\s*(\d+)\s*日\s*(上午|下午)\s*(\d+):(\d+)', cooldown_text)
+        if not steam_match:
+            return cooldown_text
+
+        month = int(steam_match.group(1))
+        day = int(steam_match.group(2))
+        period = steam_match.group(3)
+        hour = int(steam_match.group(4))
+        minute = int(steam_match.group(5))
+
+        if period == '下午' and hour != 12:
+            hour += 12
+        elif period == '上午' and hour == 12:
+            hour = 0
+
+        year = server_pacific.year
+
+        try:
+            pacific_dt = pacific.localize(datetime.datetime(year, month, day, hour, minute))
+        except Exception:
+            return cooldown_text
+
+        local_dt = pacific_dt.astimezone(None)
+
+        if month < server_pacific.month or (month == server_pacific.month and day < server_pacific.day):
+            year += 1
+            try:
+                pacific_dt = pacific.localize(datetime.datetime(year, month, day, hour, minute))
+                local_dt = pacific_dt.astimezone(None)
+            except Exception:
+                pass
+
+        return local_dt.strftime("%Y-%m-%d %H:%M")
+
+    @staticmethod
+    async def _check_single_cooldown(username, password, retry_count=3, batch_delay=3):
+        """查询单个账号的冷却/VAC状态"""
+        for attempt in range(retry_count):
+            try:
+                steam = Steam(username, password)
+                await steam.login_to_steam()
+
+                # 检查VAC冷却时间
+                r = await steam.request(
+                    "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
+                )
+                soup = BeautifulSoup(r, "html.parser")
+                if t := soup.select_one(".help_game_cooldown_expirationtime"):
+                    cooldown_text = t.text.strip()
+                    cooldown_local = AccountManagerApp._parse_steam_time_to_local(r, cooldown_text)
+                    return {"type": "cooldown", "time": cooldown_local}
+
+                # 检查VAC状态
+                r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
+                if "Counter-Strike 2" in r_vac:
+                    return {"type": "vac"}
+                return {"type": "no_ban"}
+            except Exception:
+                if attempt < retry_count - 1:
+                    await asyncio.sleep(batch_delay)
+                else:
+                    return {"type": "fail"}
+
+    @staticmethod
+    async def _check_cooldown_batch(accounts, batch_size=5, batch_delay=3, retry_count=3, progress_callback=None):
+        """批量查询冷却/VAC状态"""
+        results = {}
+        total = len(accounts)
+        done = 0
+        for i in range(0, total, batch_size):
+            batch = accounts[i:i + batch_size]
+            tasks = [
+                AccountManagerApp._check_single_cooldown(u, p, retry_count, batch_delay)
+                for u, p in batch
+            ]
+            batch_results = await asyncio.gather(*tasks)
+            for (username, _), result in zip(batch, batch_results):
+                results[username] = result
+                done += 1
+                if progress_callback:
+                    progress_callback(done, total, username, result)
+            if i + batch_size < total:
+                await asyncio.sleep(batch_delay)
+        return results
+
+    def check_cooldown_selected(self):
+        """查询选中账号的冷却状态"""
+        selected_accounts = [
+            acc for acc in self.accounts_data if acc.get('selected_state', False)
+        ]
+        if not selected_accounts:
+            messagebox.showinfo(
+                lang['check_cooldown_no_selected'],
+                lang['check_cooldown_no_accounts'],
+                parent=self.root
+            )
+            return
+
+        accounts_to_check = [(acc['account'], acc['password']) for acc in selected_accounts]
+
+        # 创建进度窗口
+        progress_win = tk.Toplevel(self.root)
+        progress_win.title(lang['check_cooldown_progress'])
+        progress_win.geometry("400x200")
+        progress_win.resizable(False, False)
+        progress_win.transient(self.root)
+        progress_win.grab_set()
+
+        progress_label = ttk.Label(progress_win, text=lang['check_cooldown_progress'])
+        progress_label.pack(pady=10)
+        progress_bar = ttk.Progressbar(progress_win, length=350, mode='determinate', maximum=len(accounts_to_check))
+        progress_bar.pack(pady=5)
+        status_label = ttk.Label(progress_win, text="")
+        status_label.pack(pady=5)
+
+        result_queue = queue.Queue()
+
+        def run_check():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            def on_progress(done, total, username, result):
+                result_queue.put(('progress', done, total, username, result))
+
+            results = loop.run_until_complete(
+                AccountManagerApp._check_cooldown_batch(
+                    accounts_to_check,
+                    batch_size=AccountManagerApp.BATCH_SIZE,
+                    batch_delay=AccountManagerApp.BATCH_DELAY,
+                    retry_count=AccountManagerApp.RETRY_COUNT,
+                    progress_callback=on_progress
+                )
+            )
+            result_queue.put(('done', results))
+            loop.close()
+
+        threading.Thread(target=run_check, daemon=True).start()
+
+        def poll_queue():
+            try:
+                while True:
+                    msg = result_queue.get_nowait()
+                    if msg[0] == 'progress':
+                        _, done, _total, username, result = msg
+                        progress_bar['value'] = done
+                        status_text = f"{username}: "
+                        if result['type'] == 'cooldown':
+                            status_text += result['time']
+                        elif result['type'] == 'vac':
+                            status_text += lang['check_cooldown_vac']
+                        elif result['type'] == 'no_ban':
+                            status_text += lang['check_cooldown_no_ban']
+                        else:
+                            status_text += lang['check_cooldown_fail']
+                        status_label.config(text=status_text)
+                    elif msg[0] == 'done':
+                        progress_win.destroy()
+                        self._apply_cooldown_results(msg[1], selected_accounts)
+                        return
+            except queue.Empty:
+                pass
+            self.root.after(100, poll_queue)
+
+        poll_queue()
+
+    def _apply_cooldown_results(self, results, selected_accounts):
+        """将查询结果应用到账号数据中"""
+        for acc in selected_accounts:
+            username = acc['account']
+            result = results.get(username)
+            if not result:
+                continue
+
+            if result['type'] == 'cooldown':
+                # 有冷却：写入冷却结束时间
+                acc['available_time'] = result['time']
+                # 同步更新original_data
+                for orig_acc in self.original_data:
+                    if orig_acc['account'] == username:
+                        orig_acc['available_time'] = result['time']
+                        break
+                self._update_account_status_and_time(acc)
+            elif result['type'] == 'vac':
+                # VAC封禁：available_time设为"VAC"
+                acc['available_time'] = "VAC"
+                acc['status'] = lang['status_unavailable']
+                for orig_acc in self.original_data:
+                    if orig_acc['account'] == username:
+                        orig_acc['available_time'] = "VAC"
+                        orig_acc['status'] = lang['status_unavailable']
+                        break
+            elif result['type'] == 'no_ban':
+                # 无封禁：设为当前时间（立即可用）
+                now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                acc['available_time'] = now_str
+                acc['status'] = lang['status_available']
+                for orig_acc in self.original_data:
+                    if orig_acc['account'] == username:
+                        orig_acc['available_time'] = now_str
+                        orig_acc['status'] = lang['status_available']
+                        break
+            # fail: 不修改
+
+        self.filter_treeview()
+        self.save_data()
+
+        # 生成结果摘要
+        cooldown_count = sum(1 for r in results.values() if r['type'] == 'cooldown')
+        vac_count = sum(1 for r in results.values() if r['type'] == 'vac')
+        no_ban_count = sum(1 for r in results.values() if r['type'] == 'no_ban')
+        fail_count = sum(1 for r in results.values() if r['type'] == 'fail')
+
+        summary_lines = []
+        if cooldown_count > 0:
+            summary_lines.append(f"{lang['columns']['available_time']}: {cooldown_count}")
+        if vac_count > 0:
+            summary_lines.append(f"{lang['check_cooldown_vac']}: {vac_count}")
+        if no_ban_count > 0:
+            summary_lines.append(f"{lang['check_cooldown_no_ban']}: {no_ban_count}")
+        if fail_count > 0:
+            summary_lines.append(f"{lang['check_cooldown_fail']}: {fail_count}")
+
+        messagebox.showinfo(
+            lang['check_cooldown_result'],
+            "\n".join(summary_lines),
+            parent=self.root
+        )
+
+    # ========== 原有方法 ==========
 
     def batch_set_remarks(self):
         selected_accounts = [

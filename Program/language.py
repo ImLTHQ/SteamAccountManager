@@ -90,6 +90,16 @@ LANGUAGES = {
         '_minute': "分",
 
         'login_account': '登录此账号',
+
+        'check_cooldown_selected': "查询选中冷却",
+        'check_cooldown_no_selected': "查询冷却",
+        'check_cooldown_no_accounts': "没有选中的账号可查询",
+        'check_cooldown_progress': "正在查询冷却状态...",
+        'check_cooldown_result': "查询冷却结果",
+        'check_cooldown_vac': "VAC封禁",
+        'check_cooldown_no_ban': "无封禁",
+        'check_cooldown_fail': "查询失败",
+        'check_cooldown_retry_fail': "重试{count}次仍失败(请尝试VPN/TUN代理/路由模式游戏加速器)",
     },
     'English': {
         'app_title': "Steam Account Manager - v{version}",
@@ -182,5 +192,15 @@ LANGUAGES = {
         '_minute': "Minute",
 
         'login_account': 'Login this account',
+
+        'check_cooldown_selected': "Check Cooldown",
+        'check_cooldown_no_selected': "Check Cooldown",
+        'check_cooldown_no_accounts': "No selected accounts to check",
+        'check_cooldown_progress': "Checking cooldown status...",
+        'check_cooldown_result': "Cooldown Check Result",
+        'check_cooldown_vac': "VAC Banned",
+        'check_cooldown_no_ban': "No Ban",
+        'check_cooldown_fail': "Check Failed",
+        'check_cooldown_retry_fail': "Failed after {count} retries (try VPN/TUN proxy)",
     }
 }
