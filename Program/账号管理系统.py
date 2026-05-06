@@ -1239,27 +1239,24 @@ class AccountManagerApp:
     @staticmethod
     async def _check_single_cooldown(username, password):
         """查询单个账号的冷却/VAC状态"""
-        try:
-            steam = Steam(username, password)
-            await steam.login_to_steam()
+        steam = Steam(username, password)
+        await steam.login_to_steam()
 
-            # 检查VAC冷却时间
-            r = await steam.request(
-                "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
-            )
-            soup = BeautifulSoup(r, "html.parser")
-            if t := soup.select_one(".help_game_cooldown_expirationtime"):
-                cooldown_text = t.text.strip()
-                cooldown_local = AccountManagerApp._parse_steam_time_to_local(r, cooldown_text)
-                return {"type": "cooldown", "time": cooldown_local}
+        # 检查VAC冷却时间
+        r = await steam.request(
+            "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
+        )
+        soup = BeautifulSoup(r, "html.parser")
+        if t := soup.select_one(".help_game_cooldown_expirationtime"):
+            cooldown_text = t.text.strip()
+            cooldown_local = AccountManagerApp._parse_steam_time_to_local(r, cooldown_text)
+            return {"type": "cooldown", "time": cooldown_local}
 
-            # 检查VAC状态
-            r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
-            if "Counter-Strike 2" in r_vac:
-                return {"type": "vac"}
-            return {"type": "no_ban"}
-        except Exception:
-            return {"type": "fail"}
+        # 检查VAC状态
+        r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
+        if "Counter-Strike 2" in r_vac:
+            return {"type": "vac"}
+        return {"type": "no_ban"}
 
     @staticmethod
     async def _check_cooldown_batch(accounts, batch_size=5, batch_delay=3, progress_callback=None):
@@ -1273,8 +1270,10 @@ class AccountManagerApp:
                 AccountManagerApp._check_single_cooldown(u, p)
                 for u, p in batch
             ]
-            batch_results = await asyncio.gather(*tasks)
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
             for (username, _), result in zip(batch, batch_results):
+                if isinstance(result, BaseException):
+                    result = {"type": "fail"}
                 results[username] = result
                 done += 1
                 if progress_callback:
@@ -1351,6 +1350,14 @@ class AccountManagerApp:
                             status_text += lang['check_cooldown_no_ban']
                         else:
                             status_text += lang['check_cooldown_fail']
+                            # 查询失败立即弹窗提示
+                            progress_win.destroy()
+                            messagebox.showerror(
+                                lang['check_cooldown_fail_title'],
+                                lang['check_cooldown_fail_msg'],
+                                parent=self.root
+                            )
+                            return
                         status_label.config(text=status_text)
                     elif msg[0] == 'done':
                         progress_win.destroy()
@@ -1358,6 +1365,9 @@ class AccountManagerApp:
                         return
             except queue.Empty:
                 pass
+            except tk.TclError:
+                # 窗口已被销毁，停止轮询
+                return
             self.root.after(100, poll_queue)
 
         poll_queue()
