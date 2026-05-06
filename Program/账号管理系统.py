@@ -570,9 +570,9 @@ class AccountManagerApp:
                 text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
-            print("cs2 进程已成功关闭")
-        except subprocess.CalledProcessError as e:
-            print(f"{e.stderr}")
+            print("CS2 已成功关闭")
+        except:
+            print("CS2 未运行")
 
         try:
             subprocess.run(
@@ -583,9 +583,9 @@ class AccountManagerApp:
                 text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
-            print("Steam 进程已成功关闭")
-        except subprocess.CalledProcessError as e:
-            print(f"{e.stderr}")
+            print("Steam 已成功关闭")
+        except:
+            print("Steam 未运行")
 
         # 使用检测到的路径，如果未检测到则使用默认路径
         steam_path = self.steam_path
