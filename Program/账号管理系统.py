@@ -1305,6 +1305,15 @@ class AccountManagerApp:
         progress_win.transient(self.root)
         progress_win.grab_set()
 
+        # 居中到主窗口
+        progress_win.update_idletasks()
+        pw, ph = 380, 60
+        mx = self.root.winfo_x()
+        my = self.root.winfo_y()
+        mw = self.root.winfo_width()
+        mh = self.root.winfo_height()
+        progress_win.geometry(f"{pw}x{ph}+{mx + (mw - pw)//2}+{my + (mh - ph)//2}")
+
         progress_bar = ttk.Progressbar(progress_win, length=350, mode='determinate', maximum=len(accounts_to_check))
         progress_bar.pack(pady=15)
 
