@@ -138,6 +138,8 @@ class AddAccountDialog(simpledialog.Dialog):
     def __init__(self, parent, title, import_txt_callback):
         self.import_txt_callback = import_txt_callback
         self.new_accounts_data = []
+        self.invalid_count = 0  # 统计无效行数
+        self.total_lines = 0  # 统计总行数
         super().__init__(parent, title)
 
     def buttonbox(self):
@@ -178,11 +180,17 @@ class AddAccountDialog(simpledialog.Dialog):
     def apply(self):
         content = self.text_widget.get("1.0", tk.END).strip()
         self.new_accounts_data = []
+        self.invalid_count = 0
+        self.total_lines = 0
+        self.result = True  # 标记为点了确定
     
-        if not content: return
+        if not content: 
+            self.invalid_count = 0
+            return
         
         for line in content.split("\n"):
             line = line.strip()
+            self.total_lines += 1
             if "----" in line:
                 # 分割成三部分：账号、密码、其它（最多分割两次）
                 parts = line.split("----", 2)
@@ -191,6 +199,10 @@ class AddAccountDialog(simpledialog.Dialog):
                 others = parts[2].strip() if len(parts) > 2 else ""  # 处理第二个----后的内容
                 if account and password:
                     self.new_accounts_data.append((account, password, others))
+                else:
+                    self.invalid_count += 1
+            else:
+                self.invalid_count += 1
 
 class CustomRemarkDialog(simpledialog.Dialog):
     """用于输入自定义备注的对话框"""

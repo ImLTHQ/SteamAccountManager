@@ -58,8 +58,9 @@ class AccountManagerApp:
         self._data_loaded = False  # 数据是否已加载完成
         self.setup_ui()
         self._configure_treeview_style()
-        self._load_data_async()  # 异步加载数据，不阻塞UI
         self.steam_path = self.get_steam_install_path()
+        # 使用 after 在主循环启动后异步加载数据，避免 RuntimeError
+        self.root.after(0, self._load_data_async)
 
         if self.steam_path:
             print(f"Steam安装路径: {self.steam_path}")
@@ -1111,6 +1112,9 @@ class AccountManagerApp:
 
     def add_account_dialog(self):
         dialog = AddAccountDialog(self.root, lang['add_accounts'], self.import_txt)
+        # 检查用户是否点了确定（simpledialog.Dialog 点取消时 result 为 None）
+        if dialog.result is None:
+            return
         if hasattr(dialog, 'new_accounts_data') and dialog.new_accounts_data:
             if dialog.new_accounts_data:
                 new_accounts_count = 0
@@ -1119,12 +1123,35 @@ class AccountManagerApp:
                     account, password, others = acc_info if len(acc_info) > 2 else (*acc_info, "")
                     if self._add_new_account_entry(account, password, others):  # 传入others
                         new_accounts_count += 1
+                
+                # 计算已存在账号数（有效行数 - 新添加数 = 已存在数）
+                valid_lines = len(dialog.new_accounts_data)
+                existing_count = valid_lines - new_accounts_count
+                invalid_count = dialog.invalid_count
+                
                 if new_accounts_count > 0:
-                    messagebox.showinfo(lang['add_success'], lang['added_new_accounts'].format(count=new_accounts_count), parent=self.root)
                     self.save_data()
+                    # 根据不同情况显示不同的提示
+                    if invalid_count > 0 and existing_count > 0:
+                        messagebox.showinfo(lang['add_success'], lang['add_partial_mixed'].format(
+                            count=new_accounts_count, exists_count=existing_count, invalid_count=invalid_count), parent=self.root)
+                    elif invalid_count > 0:
+                        messagebox.showinfo(lang['add_success'], lang['add_partial_with_invalid'].format(
+                            count=new_accounts_count, invalid_count=invalid_count), parent=self.root)
+                    elif existing_count > 0:
+                        messagebox.showinfo(lang['add_success'], lang['add_partial_with_exists'].format(
+                            count=new_accounts_count, exists_count=existing_count), parent=self.root)
+                    else:
+                        messagebox.showinfo(lang['add_success'], lang['added_new_accounts'].format(count=new_accounts_count), parent=self.root)
                 elif dialog.new_accounts_data:
                     messagebox.showinfo(lang['manual_add'], lang['add_no_new'], parent=self.root)
                 self.filter_treeview()
+        elif hasattr(dialog, 'total_lines') and dialog.total_lines == 0:
+            # 输入为空
+            messagebox.showinfo(lang['manual_add'], lang['add_empty_input'], parent=self.root)
+        elif hasattr(dialog, 'invalid_count') and dialog.invalid_count > 0 and (not hasattr(dialog, 'new_accounts_data') or not dialog.new_accounts_data):
+            # 全是无效行
+            messagebox.showinfo(lang['manual_add'], lang['add_invalid_lines'].format(count=dialog.invalid_count), parent=self.root)
 
     def save_data(self, on_complete=None):
         """保存数据到文件，使用后台线程避免UI卡顿"""
@@ -1233,7 +1260,10 @@ class AccountManagerApp:
             self._data_loaded = True
             self.filter_treeview()
         
-        threading.Thread(target=lambda: self.root.after(10, lambda: on_load_complete(load_worker())), daemon=True).start()
+        def run_in_thread():
+            processed_data = load_worker()
+            self.root.after(0, lambda: on_load_complete(processed_data))
+        threading.Thread(target=run_in_thread, daemon=True).start()
 
     def refresh_treeview(self):
         # 刷新时重置排序状态
