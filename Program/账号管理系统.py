@@ -207,7 +207,6 @@ class AccountManagerApp:
         self.tree.heading("shortcut", text=lang['columns']["shortcut"], command=lambda: self.sort_by_column("shortcut"))
         self.tree.heading("account", text=lang['columns']["account"], command=lambda: self.sort_by_column("account"))
         self.tree.heading("status", text=lang['columns']["status"], command=lambda: self.sort_by_column("status"))
-        self.tree.heading("others", text=lang['columns']["others"], command=lambda: self.sort_by_column("others"))
         # 添加冷却结束时间列的排序功能
         self.tree.heading("available_time", text=lang['columns']["available_time"], command=lambda: self.sort_by_column("available_time"))
         self.tree.pack(expand=True, fill=tk.BOTH, side=tk.LEFT)
