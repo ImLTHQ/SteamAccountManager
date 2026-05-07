@@ -18,7 +18,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.3.1"
+version = "2.3.2"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -43,7 +43,6 @@ class AccountManagerApp:
     def __init__(self, root_window):
         self.root = root_window
         self.root.title(lang['app_title'].format(version=version))
-        self.root.geometry("1200x600")
         self.accounts_data = []
         self.original_data = []  # 保存原始数据用于恢复未排序状态
         self.data_file = "accounts_data.json"
@@ -1563,8 +1562,16 @@ class AccountManagerApp:
         self.save_data()
         messagebox.showinfo(lang['batch_remark_success'], lang['batch_remark_msg'].format(count=len(selected_accounts), remark=remark_text), parent=self.root)
 
+
 if __name__ == '__main__':
     root = tk.Tk()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    window_width = 1200
+    window_height = 600
+    x = (screen_width - window_width) // 2
+    y = (screen_height - window_height) // 2
+    root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+    root.title("Steam Account Manager")
     app = AccountManagerApp(root)
-    check_for_update(root, root.title(), lang, version)
     root.mainloop()
