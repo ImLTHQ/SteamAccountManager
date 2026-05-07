@@ -25,14 +25,14 @@ lang = LANGUAGES[current_lang]
 
 class AccountManagerApp:
     # 添加"序号"列作为第一列
-    COLUMNS = ("index", "select", "account", "password", "status", "available_time", "remarks", "shortcut", "others")
+    COLUMNS = ("index", "select", "account", "password", "status", "remarks", "shortcut", "available_time", "others")
     COLUMN_WIDTHS = {
         "index": 25, "select": 50, "account": 100, "password": 100, "status": 70,
-        "available_time": 120, "remarks": 100, "shortcut": 100, "others": 150
+        "remarks": 100, "shortcut": 100, "available_time": 120, "others": 150
     }
     COLUMN_ANCHORS = {
-        "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "available_time": tk.CENTER,
-        "remarks": tk.CENTER, "shortcut": tk.CENTER, "others": tk.CENTER
+        "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "remarks": tk.CENTER,
+        "shortcut": tk.CENTER, "available_time": tk.CENTER, "others": tk.CENTER
     }
     REMARKS_TO_JSON = {"": 0}
     REMARKS_FROM_JSON = {0: ""}
@@ -863,9 +863,9 @@ class AccountManagerApp:
             account_obj['account'],
             password,
             account_obj['status'],
-            display_available_time,
             account_obj['remarks'],
             display_shortcut,
+            display_available_time,
             others
         ), tags=(status_tag,))
 
@@ -900,7 +900,7 @@ class AccountManagerApp:
         for item_data in display_data:
             if is_sorting_by_remarks and item_data.get('is_blank', False):
                 # 仅在按备注排序时插入空白行
-                self.tree.insert("", tk.END, values=("", "", "", "", "", "", "", ""), tags=('blank',))
+                self.tree.insert("", tk.END, values=("", "", "", "", "", "", "", "", ""), tags=('blank',))
                 continue
             
             # 处理实际数据行
@@ -952,9 +952,9 @@ class AccountManagerApp:
                 acc_data['account'],
                 password,
                 acc_data['status'],
-                display_available_time,
                 acc_data['remarks'],
                 display_shortcut,
+                display_available_time,
                 others
             ), tags=(status_tag,))
             
