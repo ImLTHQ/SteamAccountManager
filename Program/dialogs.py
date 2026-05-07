@@ -117,7 +117,7 @@ class DateTimeDialog(simpledialog.Dialog):
                 self.minute_var.get()
             )
         except ValueError as e:
-            messagebox.showerror(lang['input_error'], lang['invalid_datetime'].format(error=e))
+            messagebox.showerror(lang['input_error'], lang['invalid_datetime'])
             self.result = None
 
     def buttonbox(self):

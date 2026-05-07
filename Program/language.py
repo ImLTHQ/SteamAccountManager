@@ -85,7 +85,7 @@ LANGUAGES = {
         '_hour': "时",
         '_minute': "分",
         'input_error': "输入错误",
-        'invalid_datetime': "无效的日期时间: {error}",
+        'invalid_datetime': "无效值",
 
         'login_account': '登录此账号',
 
@@ -98,7 +98,6 @@ LANGUAGES = {
         'check_cooldown_cooldown': "冷却中",
         'check_cooldown_fail': "查询失败",
         'check_cooldown_fail_msg': "请尝试VPN/TUN代理/路由模式游戏加速器",
-        'check_cooldown_retry_fail': "重试{count}次仍失败(请尝试VPN/TUN代理/路由模式游戏加速器)",
     },
     'English': {
         'app_title': "Steam Account Manager - v{version}",
@@ -186,7 +185,7 @@ LANGUAGES = {
         '_hour': "Hour",
         '_minute': "Minute",
         'input_error': "Input Error",
-        'invalid_datetime': "Invalid date/time: {error}",
+        'invalid_datetime': "Invalid value",
 
         'login_account': 'Login Account',
 
@@ -199,6 +198,5 @@ LANGUAGES = {
         'check_cooldown_cooldown': "Cooldown",
         'check_cooldown_fail': "Query Failed",
         'check_cooldown_fail_msg': "Try VPN/TUN proxy/router-mode game accelerator",
-        'check_cooldown_retry_fail': "{count} retries failed (try VPN/TUN proxy/router-mode game accelerator)",
     }
 }
