@@ -14,7 +14,7 @@ import pytz
 from pysteamauth.auth import Steam
 from bs4 import BeautifulSoup
 
-from dialogs import AddAccountDialog, CustomRemarkDialog
+from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog, ExportMethodDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
@@ -551,9 +551,9 @@ class AccountManagerApp:
         if column_header_text == lang['columns']['remarks']:
             self._add_remarks_menu_items(menu, account_obj)
         elif column_header_text == lang['columns']['shortcut']:
-            pass
+            self._add_shortcut_menu_items(menu, account_obj)
         elif column_header_text == lang['columns']['available_time']:
-            pass
+            self._add_available_time_menu_items(menu, account_obj)
 
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -612,6 +612,76 @@ class AccountManagerApp:
         self.root.update()
 
     # 重构：将各列的菜单选项拆分为单独的方法
+    def _add_available_time_menu_items(self, menu, account_obj):
+        # VAC封禁时不显示修改冷却结束时间选项
+        if account_obj.get('available_time') == "VAC":
+            return
+        menu.add_command(
+            label=lang['modify_available_time'],
+            command=lambda: self._modify_available_time(account_obj)
+        )
+
+    def _modify_available_time(self, account_obj):
+        # VAC封禁时不允许修改
+        if account_obj.get('available_time') == "VAC":
+            return
+        # 修改账号的冷却结束时间
+        try:
+            # 解析当前冷却结束时间
+            current_time = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
+        except (ValueError, TypeError):
+            # 如果解析失败，使用当前时间
+            current_time = datetime.datetime.now()
+
+        # 显示日期时间对话框
+        dlg = DateTimeDialog(self.root, lang['modify_available_time'], current_time)
+        if dlg.result:
+            # 更新冷却结束时间
+            self._update_account_status_and_time(account_obj, dlg.result)
+            self.filter_treeview()
+            self.save_data()
+
+    def _add_shortcut_menu_items(self, menu, account_obj):
+        # VAC封禁时不显示冷却时间快捷选项
+        if account_obj.get('available_time') == "VAC":
+            return
+        menu.add_command(
+            label=lang['immediately_available'],
+            command=lambda: self.apply_shortcut(account_obj, "reset")
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=lang['shortcut_20h'],
+            command=lambda: self.apply_shortcut(account_obj, "delta", hours=20)
+        )
+        menu.add_command(
+            label=lang['shortcut_7d'],
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=7)
+        )
+        menu.add_command(
+            label=lang['shortcut_31d'],
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=31)
+        )
+        menu.add_command(
+            label=lang['shortcut_181d'],
+            command=lambda: self.apply_shortcut(account_obj, "delta", days=181)
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=lang['custom_days_hours'],
+            command=lambda: self._custom_shortcut(account_obj)
+        )
+
+    def _custom_shortcut(self, account_obj):
+        # 使用自定义对话框输入天数和小时
+        dlg = DaysHoursDialog(self.root, title=lang['custom_days_hours'])
+        if dlg.result is None:
+            return
+        custom_days, custom_hours = dlg.result
+        if custom_days == 0 and custom_hours == 0:
+            self.apply_shortcut(account_obj, "reset")
+        else:
+            self.apply_shortcut(account_obj, "delta", days=custom_days, hours=custom_hours)
 
     def _add_remarks_menu_items(self, menu, account_obj):
         menu.add_command(
@@ -638,6 +708,22 @@ class AccountManagerApp:
                 break
         self.filter_treeview()
         self.save_data()
+
+    def apply_shortcut(self, account_obj, action_type, hours=0, days=0):
+        # VAC封禁时不允许快捷操作
+        if account_obj.get('available_time') == "VAC":
+            return
+        now = datetime.datetime.now()
+        new_available_time_dt = None
+        if action_type == "reset":
+            new_available_time_dt = now
+        elif action_type == "delta":
+            new_available_time_dt = now + datetime.timedelta(days=days, hours=hours)
+        if new_available_time_dt:
+            self._update_account_status_and_time(account_obj, new_available_time_dt)
+            # 快捷操作后保持当前排序状态
+            self.filter_treeview()
+            self.save_data()
 
     def _update_account_status_and_time(self, account_obj, new_available_time_dt=None):
         if account_obj.get('available_time') == "VAC":
@@ -1157,7 +1243,6 @@ class AccountManagerApp:
             return
 
         # 显示导出方式选择对话框
-        from dialogs import ExportMethodDialog  # 导入对话框类
         dialog = ExportMethodDialog(self.root)
         export_method = dialog.result
 
@@ -1215,7 +1300,6 @@ class AccountManagerApp:
 
     BATCH_SIZE = 5
     BATCH_DELAY = 3
-    RETRY_COUNT = 3
 
     @staticmethod
     def _parse_steam_time_to_local(html, cooldown_text):
