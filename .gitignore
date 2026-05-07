@@ -1,5 +1,4 @@
 build/
-dist/
 *.spec
 accounts_data.json
 Program/__pycache__
