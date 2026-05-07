@@ -1031,26 +1031,34 @@ class AccountManagerApp:
 
     def load_data(self):
         try:
+            # 需要设置的默认值
+            default_available_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            # 读取JSON数据
             with open(self.data_file, 'r', encoding='utf-8') as f:
                 loaded_entries = json.load(f)
-                self.accounts_data = []
-                self.original_data = []  # 重置原始数据
-                for entry in loaded_entries:
-                    entry.setdefault('selected_state', False)
-                    entry.setdefault('available_time', datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-                    entry.setdefault('others', '')
-                    # 兼容数字和字符串
-                    if isinstance(entry.get('remarks', ""), int):
-                        entry['remarks'] = self.REMARKS_FROM_JSON.get(entry.get('remarks', 0), '')
-                    else:
-                        entry['remarks'] = entry.get('remarks', '')
-                    entry.pop('id', None)
-                    entry.pop('shortcut', None)
-                    entry.pop('delay_days', None)
-                    entry.pop('delay_hours', None)
-                    entry.pop('status', None)
-                    self.accounts_data.append(entry.copy())
-                    self.original_data.append(entry.copy())  # 同时添加到原始数据
+            
+            # 预处理所有数据，减少循环中的重复操作
+            self.accounts_data = []
+            self.original_data = []
+            
+            for entry in loaded_entries:
+                # 设置默认值
+                entry.setdefault('selected_state', False)
+                entry.setdefault('available_time', default_available_time)
+                entry.setdefault('others', '')
+                
+                # 兼容数字和字符串备注
+                remarks = entry.get('remarks', "")
+                if isinstance(remarks, int):
+                    entry['remarks'] = self.REMARKS_FROM_JSON.get(remarks, '')
+                else:
+                    entry['remarks'] = remarks or ''
+                
+                # 直接引用，避免重复copy
+                self.accounts_data.append(entry)
+                self.original_data.append(entry)
+                
         except FileNotFoundError:
             self.accounts_data = []
             self.original_data = []
