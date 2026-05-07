@@ -56,9 +56,10 @@ class AccountManagerApp:
         self.show_hidden_var = tk.BooleanVar(value=False)
         self._task_queue = queue.Queue()  # 后台任务队列
         self._processing = False  # 是否正在处理任务
+        self._data_loaded = False  # 数据是否已加载完成
         self.setup_ui()
         self._configure_treeview_style()
-        self.load_data()
+        self._load_data_async()  # 异步加载数据，不阻塞UI
         self.steam_path = self.get_steam_install_path()
 
         if self.steam_path:
@@ -1067,6 +1068,38 @@ class AccountManagerApp:
             self.accounts_data = []
             self.original_data = []
         self.filter_treeview()
+
+    def _load_data_async(self):
+        """异步加载数据，在后台线程执行，不阻塞UI"""
+        def load_worker():
+            try:
+                with open(self.data_file, 'r', encoding='utf-8') as f:
+                    loaded_entries = json.load(f)
+                default_available_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                
+                processed_data = []
+                for entry in loaded_entries:
+                    entry.setdefault('selected_state', False)
+                    entry.setdefault('available_time', default_available_time)
+                    entry.setdefault('others', '')
+                    remarks = entry.get('remarks', "")
+                    if isinstance(remarks, int):
+                        entry['remarks'] = self.REMARKS_FROM_JSON.get(remarks, '')
+                    else:
+                        entry['remarks'] = remarks or ''
+                    processed_data.append(entry)
+                
+                return processed_data
+            except Exception:
+                return []
+        
+        def on_load_complete(processed_data):
+            self.accounts_data = processed_data
+            self.original_data = [acc.copy() for acc in processed_data]
+            self._data_loaded = True
+            self.filter_treeview()
+        
+        threading.Thread(target=lambda: self.root.after(10, lambda: on_load_complete(load_worker())), daemon=True).start()
 
     def refresh_treeview(self):
         # 刷新时重置排序状态
