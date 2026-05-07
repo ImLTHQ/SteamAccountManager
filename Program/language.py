@@ -55,7 +55,7 @@ LANGUAGES = {
         'import_failed': "导入文件失败: {error}",
         'add_success': "添加成功",
         'added_new_accounts': "成功添加 {count} 个新账号",
-        'add_no_new': "没有新的账号被添加（可能已存在）",
+        'add_no_new': "没有新账号被添加 (存在/空/格式不正确)",
         'save_failed': "保存失败",
         'save_error': "保存数据失败: {error}",
         'load_error': "加载错误",
@@ -197,7 +197,7 @@ LANGUAGES = {
         'shortcut_31d': "31 days",
         'shortcut_45d': "45 days",
         'shortcut_181d': "181 days",
-        'shortcut_vac': "VAC Ban",
+        'shortcut_vac': "VAC Banned",
 
         '_year': "Year",
         '_month': "Month",

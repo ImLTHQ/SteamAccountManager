@@ -652,11 +652,17 @@ class AccountManagerApp:
             self.save_data()
 
     def _add_shortcut_menu_items(self, menu, account_obj):
-        menu.add_command(
-            label=lang['immediately_available'],
-            command=lambda acc=account_obj: self.apply_shortcut(acc, "reset")
-        )
-        menu.add_separator()
+        # 判断账号是否有冷却时间（VAC封禁或有未来时间）
+        has_cooldown = self._has_cooldown(account_obj)
+        
+        # 有冷却时间才显示"立即可用"
+        if has_cooldown:
+            menu.add_command(
+                label=lang['immediately_available'],
+                command=lambda acc=account_obj: self.apply_shortcut(acc, "reset")
+            )
+            menu.add_separator()
+        
         menu.add_command(
             label=lang['shortcut_20h'],
             command=lambda acc=account_obj: self.apply_shortcut(acc, "delta", hours=20)
@@ -673,17 +679,28 @@ class AccountManagerApp:
             label=lang['shortcut_181d'],
             command=lambda acc=account_obj: self.apply_shortcut(acc, "delta", days=181)
         )
+        menu.add_separator()
+        menu.add_command(
+            label=lang['custom_days_hours'],
+            command=lambda acc=account_obj: self._custom_shortcut(acc)
+        )
         # 只有非VAC账号才能设置VAC封禁
         if account_obj.get('available_time') != "VAC":
             menu.add_command(
                 label=lang['shortcut_vac'],
                 command=lambda acc=account_obj: self.apply_shortcut(acc, "vac")
             )
-        menu.add_separator()
-        menu.add_command(
-            label=lang['custom_days_hours'],
-            command=lambda acc=account_obj: self._custom_shortcut(acc)
-        )
+
+    def _has_cooldown(self, account_obj):
+        """判断账号是否有冷却时间（VAC封禁或有未来冷却时间）"""
+        at = account_obj.get('available_time', '')
+        if at == "VAC":
+            return True
+        try:
+            available_dt = datetime.datetime.strptime(at, "%Y-%m-%d %H:%M")
+            return available_dt > datetime.datetime.now()
+        except (ValueError, TypeError):
+            return False
 
     def _custom_shortcut(self, account_obj):
         # 使用自定义对话框输入天数和小时
