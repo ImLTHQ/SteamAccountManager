@@ -1715,7 +1715,6 @@ if __name__ == '__main__':
     x = (screen_width - window_width) // 2
     y = (screen_height - window_height) // 2
     root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-    root.title("Steam Account Manager")
-    app = AccountManagerApp(root)
+    AccountManagerApp(root)
     check_for_update(root, root.title(), lang, version)
     root.mainloop()
