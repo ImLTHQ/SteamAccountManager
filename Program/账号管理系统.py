@@ -184,6 +184,17 @@ class AccountManagerApp:
         self.batch_remarks_btn = ttk.Button(search_frame, text=lang['batch_remark'], command=self.batch_set_remarks)
         self.batch_remarks_combo.pack_forget()
         self.batch_remarks_btn.pack_forget()
+
+        # 批量移动下拉栏和按钮（默认隐藏，只读模式）
+        self.batch_move_var = tk.StringVar()
+        self.batch_move_combo = ttk.Combobox(
+            search_frame, textvariable=self.batch_move_var, state="readonly", width=8
+        )
+        self.batch_move_combo['values'] = lang['move_options']
+        self.batch_move_combo.set(lang['move_default'])
+        self.batch_move_btn = ttk.Button(search_frame, text=lang['batch_move'], command=self.batch_move_selected)
+        self.batch_move_combo.pack_forget()
+        self.batch_move_btn.pack_forget()
         
         tree_frame = ttk.Frame(self.root, padding="10")
         tree_frame.pack(expand=True, fill=tk.BOTH)
@@ -926,11 +937,15 @@ class AccountManagerApp:
         if selected_accounts:
             self.batch_remarks_combo.pack(side=tk.RIGHT, padx=5)
             self.batch_remarks_btn.pack(side=tk.RIGHT, padx=5)
+            self.batch_move_combo.pack(side=tk.RIGHT, padx=5)
+            self.batch_move_btn.pack(side=tk.RIGHT, padx=5)
             self.vac_btn.pack(side=tk.RIGHT, padx=5)
             self.delete_btn.pack(side=tk.RIGHT, padx=5)
         else:
             self.batch_remarks_combo.pack_forget()
             self.batch_remarks_btn.pack_forget()
+            self.batch_move_combo.pack_forget()
+            self.batch_move_btn.pack_forget()
             self.vac_btn.pack_forget()
             self.delete_btn.pack_forget()
         # 更新"选择"列的表头，显示选中的数量
@@ -1561,6 +1576,70 @@ class AccountManagerApp:
         self.filter_treeview()
         self.save_data()
         messagebox.showinfo(lang['batch_remark_success'], lang['batch_remark_msg'].format(count=len(selected_accounts), remark=remark_text), parent=self.root)
+
+    def batch_move_selected(self):
+        """批量移动选中的账号"""
+        selected_accounts = [
+            acc for acc in self.accounts_data if acc.get('selected_state', False)
+        ]
+        if not selected_accounts:
+            return
+
+        move_option = self.batch_move_var.get()
+        move_options = lang['move_options']
+
+        if move_option not in move_options:
+            return
+
+        # 保存选中账号的原始顺序
+        selected_accounts_ordered = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
+
+        if move_option == move_options[1]:  # 上移一位
+            for i, acc in enumerate(self.accounts_data):
+                if acc.get('selected_state', False) and i > 0:
+                    # 找到前一个非选中账号，与之交换
+                    for j in range(i - 1, -1, -1):
+                        if not self.accounts_data[j].get('selected_state', False):
+                            self.accounts_data[i], self.accounts_data[j] = self.accounts_data[j], self.accounts_data[i]
+                            break
+            direction = lang['move_up']
+        elif move_option == move_options[2]:  # 下移一位
+            for i in range(len(self.accounts_data) - 1, -1, -1):
+                if self.accounts_data[i].get('selected_state', False) and i < len(self.accounts_data) - 1:
+                    # 找到后一个非选中账号，与之交换
+                    for j in range(i + 1, len(self.accounts_data)):
+                        if not self.accounts_data[j].get('selected_state', False):
+                            self.accounts_data[i], self.accounts_data[j] = self.accounts_data[j], self.accounts_data[i]
+                            break
+            direction = lang['move_down']
+        elif move_option == move_options[3]:  # 置顶
+            # 将选中的账号移到前面，保持相对顺序
+            unselected = [acc for acc in self.accounts_data if not acc.get('selected_state', False)]
+            self.accounts_data = selected_accounts_ordered + unselected
+            direction = lang['move_top']
+        elif move_option == move_options[4]:  # 置底
+            # 将选中的账号移到最后，保持相对顺序
+            unselected = [acc for acc in self.accounts_data if not acc.get('selected_state', False)]
+            self.accounts_data = unselected + selected_accounts_ordered
+            direction = lang['move_bottom']
+        else:
+            return  # 不操作
+
+        # 同步更新original_data的顺序
+        original_dict = {acc['account']: acc for acc in self.original_data}
+        self.original_data = [original_dict[acc['account']].copy() for acc in self.accounts_data]
+        for i, acc in enumerate(self.original_data):
+            acc['account'] = self.accounts_data[i]['account']
+            acc['password'] = self.accounts_data[i]['password']
+            acc['available_time'] = self.accounts_data[i]['available_time']
+            acc['remarks'] = self.accounts_data[i]['remarks']
+            acc['others'] = self.accounts_data[i].get('others', '')
+            acc['selected_state'] = self.accounts_data[i].get('selected_state', False)
+
+        self.batch_move_var.set("")
+        self.filter_treeview()
+        self.save_data()
+        messagebox.showinfo(lang['move_success'], lang['move_msg'].format(count=len(selected_accounts), direction=direction), parent=self.root)
 
 
 if __name__ == '__main__':
