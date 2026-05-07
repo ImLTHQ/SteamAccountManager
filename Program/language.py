@@ -87,6 +87,7 @@ LANGUAGES = {
         'shortcut_31d': "31天",
         'shortcut_45d': "45天",
         'shortcut_181d': "181天",
+        'shortcut_vac': "VAC封禁",
 
         '_year': "年",
         '_month': "月",
@@ -196,6 +197,7 @@ LANGUAGES = {
         'shortcut_31d': "31 days",
         'shortcut_45d': "45 days",
         'shortcut_181d': "181 days",
+        'shortcut_vac': "VAC Ban",
 
         '_year': "Year",
         '_month': "Month",

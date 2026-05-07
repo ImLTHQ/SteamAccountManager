@@ -628,7 +628,7 @@ class AccountManagerApp:
             return
         menu.add_command(
             label=lang['modify_available_time'],
-            command=lambda: self._modify_available_time(account_obj)
+            command=lambda acc=account_obj: self._modify_available_time(acc)
         )
 
     def _modify_available_time(self, account_obj):
@@ -652,34 +652,37 @@ class AccountManagerApp:
             self.save_data()
 
     def _add_shortcut_menu_items(self, menu, account_obj):
-        # VAC封禁时不显示冷却时间快捷选项
-        if account_obj.get('available_time') == "VAC":
-            return
         menu.add_command(
             label=lang['immediately_available'],
-            command=lambda: self.apply_shortcut(account_obj, "reset")
+            command=lambda acc=account_obj: self.apply_shortcut(acc, "reset")
         )
         menu.add_separator()
         menu.add_command(
             label=lang['shortcut_20h'],
-            command=lambda: self.apply_shortcut(account_obj, "delta", hours=20)
+            command=lambda acc=account_obj: self.apply_shortcut(acc, "delta", hours=20)
         )
         menu.add_command(
             label=lang['shortcut_7d'],
-            command=lambda: self.apply_shortcut(account_obj, "delta", days=7)
+            command=lambda acc=account_obj: self.apply_shortcut(acc, "delta", days=7)
         )
         menu.add_command(
             label=lang['shortcut_31d'],
-            command=lambda: self.apply_shortcut(account_obj, "delta", days=31)
+            command=lambda acc=account_obj: self.apply_shortcut(acc, "delta", days=31)
         )
         menu.add_command(
             label=lang['shortcut_181d'],
-            command=lambda: self.apply_shortcut(account_obj, "delta", days=181)
+            command=lambda acc=account_obj: self.apply_shortcut(acc, "delta", days=181)
         )
+        # 只有非VAC账号才能设置VAC封禁
+        if account_obj.get('available_time') != "VAC":
+            menu.add_command(
+                label=lang['shortcut_vac'],
+                command=lambda acc=account_obj: self.apply_shortcut(acc, "vac")
+            )
         menu.add_separator()
         menu.add_command(
             label=lang['custom_days_hours'],
-            command=lambda: self._custom_shortcut(account_obj)
+            command=lambda acc=account_obj: self._custom_shortcut(acc)
         )
 
     def _custom_shortcut(self, account_obj):
@@ -696,12 +699,12 @@ class AccountManagerApp:
     def _add_remarks_menu_items(self, menu, account_obj):
         menu.add_command(
             label=lang['remarks_options'][0], 
-            command=lambda: self.set_remarks(account_obj, "")
+            command=lambda acc=account_obj: self.set_remarks(acc, "")
         )
         menu.add_separator()
         menu.add_command(
             label=lang['remarks_options'][1], 
-            command=lambda: self._custom_remarks(account_obj)
+            command=lambda acc=account_obj: self._custom_remarks(acc)
         )
 
     def _custom_remarks(self, account_obj):
@@ -720,44 +723,59 @@ class AccountManagerApp:
         self.save_data()
 
     def apply_shortcut(self, account_obj, action_type, hours=0, days=0):
-        # VAC封禁时不允许快捷操作
-        if account_obj.get('available_time') == "VAC":
+        # 处理VAC封禁
+        if action_type == "vac":
+            self._update_account_status_and_time(account_obj, vac_ban=True)
+            self.filter_treeview()
+            self.save_data()
             return
-        now = datetime.datetime.now()
-        new_available_time_dt = None
+        # 处理立即可用
         if action_type == "reset":
-            new_available_time_dt = now
-        elif action_type == "delta":
+            self._update_account_status_and_time(account_obj, datetime.datetime.now())
+            self.filter_treeview()
+            self.save_data()
+            return
+        # 处理delta时间
+        if action_type == "delta":
+            now = datetime.datetime.now()
             new_available_time_dt = now + datetime.timedelta(days=days, hours=hours)
-        if new_available_time_dt:
             self._update_account_status_and_time(account_obj, new_available_time_dt)
-            # 快捷操作后保持当前排序状态
             self.filter_treeview()
             self.save_data()
 
-    def _update_account_status_and_time(self, account_obj, new_available_time_dt=None):
-        if account_obj.get('available_time') == "VAC":
-            # VAC封禁状态，保持不可用
+    def _update_account_status_and_time(self, account_obj, new_available_time_dt=None, vac_ban=False):
+        # 优先处理显式设置的情况（解除VAC或设置VAC）
+        if vac_ban:
+            account_obj['available_time'] = "VAC"
             account_obj['status'] = lang['status_unavailable']
-            for orig_acc in self.original_data:
-                if orig_acc['account'] == account_obj['account']:
-                    orig_acc['status'] = account_obj['status']
-                    break
+            self._sync_original_data(account_obj)
+            return
+        
+        # 有具体时间值时，解除VAC并设置时间
+        if new_available_time_dt is not None:
+            account_obj['available_time'] = new_available_time_dt.strftime("%Y-%m-%d %H:%M")
+            account_obj['status'] = lang['status_available'] if new_available_time_dt <= datetime.datetime.now() else lang['status_unavailable']
+            self._sync_original_data(account_obj)
             return
 
-        if new_available_time_dt is None:
-            try:
-                available_dt = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
-            except (ValueError, TypeError):
-                available_dt = datetime.datetime.min
-        else:
-            available_dt = new_available_time_dt
+        # 没有具体设置时，如果是VAC则保持不变（只确保status正确）
+        if account_obj.get('available_time') == "VAC":
+            account_obj['status'] = lang['status_unavailable']
+            return
+        
+        # 正常解析时间
+        try:
+            available_dt = datetime.datetime.strptime(account_obj['available_time'], "%Y-%m-%d %H:%M")
+        except (ValueError, TypeError):
+            available_dt = datetime.datetime.min
         account_obj['available_time'] = available_dt.strftime("%Y-%m-%d %H:%M")
         account_obj['status'] = lang['status_available'] if available_dt <= datetime.datetime.now() else lang['status_unavailable']
-        
-        # 更新原始数据中的时间和状态
+        self._sync_original_data(account_obj)
+
+    def _sync_original_data(self, account_obj):
+        """同步更新原始数据"""
         for orig_acc in self.original_data:
-            if orig_acc['account'] == account_obj['account']:  # 只比较账号
+            if orig_acc['account'] == account_obj['account']:
                 orig_acc['available_time'] = account_obj['available_time']
                 orig_acc['status'] = account_obj['status']
                 break
