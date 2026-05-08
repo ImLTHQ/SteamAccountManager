@@ -18,7 +18,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.3.4"
+version = "2.3.5"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -1662,10 +1662,8 @@ class AccountManagerApp:
             active = cooldown_count - expired_cooldown_count
             if active > 0:
                 summary_lines.append(f"{lang['check_cooldown_cooldown']}: {active}")
-            if expired_cooldown_count > 0:
-                summary_lines.append(f"{lang['check_cooldown_expired']}: {expired_cooldown_count}")
-        if no_ban_count > 0:
-            summary_lines.append(f"{lang['check_cooldown_no_ban']}: {no_ban_count}")
+        if no_ban_count > 0 or expired_cooldown_count > 0:
+            summary_lines.append(f"{lang['check_cooldown_no_ban']}: {no_ban_count + expired_cooldown_count}")
 
         messagebox.showinfo(
             lang['check_cooldown_result'],

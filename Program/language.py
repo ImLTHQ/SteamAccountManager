@@ -114,7 +114,6 @@ LANGUAGES = {
         'check_cooldown_vac': "VAC封禁",
         'check_cooldown_no_ban': "无封禁",
         'check_cooldown_cooldown': "冷却中",
-        'check_cooldown_expired': "冷却到期",
         'check_cooldown_fail': "查询失败",
         'check_cooldown_fail_msg': "请尝试VPN/TUN代理/路由模式游戏加速器",
     },
@@ -233,7 +232,6 @@ LANGUAGES = {
         'check_cooldown_vac': "VAC Banned",
         'check_cooldown_no_ban': "No Ban",
         'check_cooldown_cooldown': "Cooldown",
-        'check_cooldown_expired': "Cooldown Expired",
         'check_cooldown_fail': "Query Failed",
         'check_cooldown_fail_msg': "Try VPN/TUN proxy/router-mode game accelerator",
     }
