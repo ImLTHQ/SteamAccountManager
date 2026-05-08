@@ -1437,14 +1437,6 @@ class AccountManagerApp:
 
         local_dt = pacific_dt.astimezone(None)
 
-        if month < server_pacific.month or (month == server_pacific.month and day < server_pacific.day):
-            year += 1
-            try:
-                pacific_dt = pacific.localize(datetime.datetime(year, month, day, hour, minute))
-                local_dt = pacific_dt.astimezone(None)
-            except Exception:
-                pass
-
         return local_dt.strftime("%Y-%m-%d %H:%M")
 
     @staticmethod

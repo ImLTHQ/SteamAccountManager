@@ -103,9 +103,10 @@ async def check(username, password):
                 return f"[{username}] 重试{RETRY_COUNT}次仍失败(请尝试VPN/TUN代理/路由模式游戏加速器)"
 
 accounts = [
-    ("rpifk19283", "chdw43041O"),# 带冷却
-    ("vnhba91594", "VF1911148"),# VAC
-    ("baqfy09619", "fltf86954H"),# 新号
+    #("rpifk19283", "chdw43041O"),# 带冷却
+    #("vnhba91594", "VF1911148"),# VAC
+    #("baqfy09619", "fltf86954H"),# 新号
+    ("damzx05439", "yvhb95716E")
 ]
 
 
