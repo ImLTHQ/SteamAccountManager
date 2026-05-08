@@ -18,7 +18,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.3.2"
+version = "2.3.3"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -78,7 +78,6 @@ class AccountManagerApp:
         current_title = window.title()
         if self._retry_title_suffix not in current_title:
             new_title = current_title + self._retry_title_suffix
-            print(f"标题更新: {new_title}")
             window.title(new_title)
             window.update_idletasks()
 
@@ -86,7 +85,6 @@ class AccountManagerApp:
         current_title = window.title()
         if current_title.endswith(self._retry_title_suffix):
             new_title = current_title[:-len(self._retry_title_suffix)]
-            print(f"标题恢复: {new_title}")
             window.title(new_title)
             window.update_idletasks()
 
