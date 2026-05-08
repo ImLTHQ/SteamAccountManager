@@ -43,6 +43,7 @@ class AccountManagerApp:
     def __init__(self, root_window):
         self.root = root_window
         self.root.title(lang['app_title'].format(version=version))
+        self._retry_title_suffix = lang['retrying']
         self.accounts_data = []
         self.original_data = []  # 保存原始数据用于恢复未排序状态
         self.data_file = "accounts_data.json"
@@ -72,6 +73,22 @@ class AccountManagerApp:
     def _queue_task(self, task_func, *args, **kwargs):
         """将任务添加到后台队列"""
         self._task_queue.put((task_func, args, kwargs))
+
+    def _append_retry_title_suffix(self, window):
+        current_title = window.title()
+        if self._retry_title_suffix not in current_title:
+            new_title = current_title + self._retry_title_suffix
+            print(f"标题更新: {new_title}")
+            window.title(new_title)
+            window.update_idletasks()
+
+    def _remove_retry_title_suffix(self, window):
+        current_title = window.title()
+        if current_title.endswith(self._retry_title_suffix):
+            new_title = current_title[:-len(self._retry_title_suffix)]
+            print(f"标题恢复: {new_title}")
+            window.title(new_title)
+            window.update_idletasks()
 
     def _process_task_queue(self):
         """处理后台任务队列（在主线程中用after调用）"""
@@ -1433,7 +1450,7 @@ class AccountManagerApp:
         return local_dt.strftime("%Y-%m-%d %H:%M")
 
     @staticmethod
-    async def _check_single_cooldown(username, password):
+    async def _check_single_cooldown(username, password, retry_callback=None):
         """查询单个账号的冷却/VAC状态，支持重试"""
         steam = None
         for attempt in range(AccountManagerApp.RETRY_COUNT + 1):
@@ -1458,6 +1475,8 @@ class AccountManagerApp:
                 return {"type": "no_ban"}
             except Exception as e:
                 if attempt < AccountManagerApp.RETRY_COUNT:
+                    if retry_callback:
+                        retry_callback(username, attempt + 1)
                     # 还有重试机会，等待后重试
                     await asyncio.sleep(AccountManagerApp.BATCH_DELAY)
                 else:
@@ -1472,7 +1491,7 @@ class AccountManagerApp:
                         pass
 
     @staticmethod
-    async def _check_cooldown_batch(accounts, batch_size=5, batch_delay=3, progress_callback=None):
+    async def _check_cooldown_batch(accounts, batch_size=5, batch_delay=3, progress_callback=None, retry_callback=None):
         """批量查询冷却/VAC状态"""
         results = {}
         total = len(accounts)
@@ -1480,7 +1499,7 @@ class AccountManagerApp:
         for i in range(0, total, batch_size):
             batch = accounts[i:i + batch_size]
             tasks = [
-                AccountManagerApp._check_single_cooldown(u, p)
+                AccountManagerApp._check_single_cooldown(u, p, retry_callback=retry_callback)
                 for u, p in batch
             ]
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -1534,12 +1553,17 @@ class AccountManagerApp:
             def on_progress(done, total, username, result):
                 result_queue.put(('progress', done, total, username, result))
 
+            def on_retry(username, attempt):
+                print(f"重试中: {username} 第{attempt}次")
+                result_queue.put(('retry', username, attempt))
+
             results = loop.run_until_complete(
                 AccountManagerApp._check_cooldown_batch(
                     accounts_to_check,
                     batch_size=AccountManagerApp.BATCH_SIZE,
                     batch_delay=AccountManagerApp.BATCH_DELAY,
-                    progress_callback=on_progress
+                    progress_callback=on_progress,
+                    retry_callback=on_retry
                 )
             )
             result_queue.put(('done', results))
@@ -1556,6 +1580,7 @@ class AccountManagerApp:
                         progress_bar['value'] = done
                         if result.get('type') == 'fail':
                             # 查询失败（重试后仍失败）立即弹窗提示并中断
+                            self._remove_retry_title_suffix(progress_win)
                             progress_win.destroy()
                             messagebox.showerror(
                                 lang['check_cooldown_fail'],
@@ -1563,7 +1588,10 @@ class AccountManagerApp:
                                 parent=self.root
                             )
                             return
+                    elif msg[0] == 'retry':
+                        self._append_retry_title_suffix(progress_win)
                     elif msg[0] == 'done':
+                        self._remove_retry_title_suffix(progress_win)
                         progress_win.destroy()
                         if msg[1] is None:
                             # 查询被中断（已有失败账号处理）
