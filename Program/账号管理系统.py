@@ -18,7 +18,7 @@ from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRem
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.3.3"
+version = "2.3.4"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -1615,14 +1615,26 @@ class AccountManagerApp:
                         orig_acc['status'] = lang['status_unavailable']
                         break
             elif result['type'] == 'cooldown':
-                # 冷却中：保存冷却时间
-                acc['available_time'] = result['time']
-                acc['status'] = lang['status_unavailable']
-                for orig_acc in self.original_data:
-                    if orig_acc['account'] == username:
-                        orig_acc['available_time'] = result['time']
-                        orig_acc['status'] = lang['status_unavailable']
-                        break
+                dt = datetime.datetime.strptime(result['time'], "%Y-%m-%d %H:%M")
+                if dt <= datetime.datetime.now():
+                    # 冷却到期，设为可用
+                    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                    acc['available_time'] = now_str
+                    acc['status'] = lang['status_available']
+                    for orig_acc in self.original_data:
+                        if orig_acc['account'] == username:
+                            orig_acc['available_time'] = now_str
+                            orig_acc['status'] = lang['status_available']
+                            break
+                else:
+                    # 冷却中
+                    acc['available_time'] = result['time']
+                    acc['status'] = lang['status_unavailable']
+                    for orig_acc in self.original_data:
+                        if orig_acc['account'] == username:
+                            orig_acc['available_time'] = result['time']
+                            orig_acc['status'] = lang['status_unavailable']
+                            break
             elif result['type'] == 'no_ban':
                 # 无封禁：设为当前时间（立即可用）
                 now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -1641,12 +1653,17 @@ class AccountManagerApp:
         vac_count = sum(1 for r in results.values() if r['type'] == 'vac')
         cooldown_count = sum(1 for r in results.values() if r['type'] == 'cooldown')
         no_ban_count = sum(1 for r in results.values() if r['type'] == 'no_ban')
+        expired_cooldown_count = sum(1 for acc in selected_accounts if acc['status'] == lang['status_available'] and acc['account'] in [k for k, v in results.items() if v['type'] == 'cooldown'])
 
         summary_lines = []
         if vac_count > 0:
             summary_lines.append(f"{lang['check_cooldown_vac']}: {vac_count}")
         if cooldown_count > 0:
-            summary_lines.append(f"{lang['check_cooldown_cooldown']}: {cooldown_count}")
+            active = cooldown_count - expired_cooldown_count
+            if active > 0:
+                summary_lines.append(f"{lang['check_cooldown_cooldown']}: {active}")
+            if expired_cooldown_count > 0:
+                summary_lines.append(f"{lang['check_cooldown_expired']}: {expired_cooldown_count}")
         if no_ban_count > 0:
             summary_lines.append(f"{lang['check_cooldown_no_ban']}: {no_ban_count}")
 
