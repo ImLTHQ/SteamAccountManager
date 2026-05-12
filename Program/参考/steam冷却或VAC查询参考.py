@@ -7,7 +7,7 @@ import pytz
 
 BATCH_SIZE = 5  # 每批并发数
 BATCH_DELAY = 3  # 批次间等待秒数
-RETRY_COUNT = 3  # 超时重试次数
+RETRY_COUNT = 1  # 超时重试次数
 
 def parse_steam_time_to_local(html, cooldown_text):
     """将Steam页面显示的冷却时间（太平洋时间）转换为本地时区"""
@@ -105,8 +105,7 @@ async def check(username, password):
 accounts = [
     #("rpifk19283", "chdw43041O"),# 带冷却
     #("vnhba91594", "VF1911148"),# VAC
-    #("baqfy09619", "fltf86954H"),# 新号
-    ("damzx05439", "yvhb95716E")
+    #("dpkzi45933", "gybf85950A")# 新号
 ]
 
 
