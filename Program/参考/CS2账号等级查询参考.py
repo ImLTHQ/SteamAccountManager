@@ -8,4 +8,4 @@ accounts = [
 # https://store.steampowered.com/account/
 # Get SteamID 星号替换成ID
 # https://steamcommunity.com/profiles/*/gcpd/730
-# Get CS:GO Profile Rank 然后print出来
+# Get CS:GO Profile Rank 然后print出来：[${账号}] CS等级: ${等级}
