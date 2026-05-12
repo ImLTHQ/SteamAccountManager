@@ -22,10 +22,16 @@ RETRY_COUNT = 1  # 超时重试次数
 def extract_steam_id(html_content):
     """
     从HTML内容中提取Steam ID
-    查找"Steam ID："（中文冒号，后面没有任何空格）后面的数字，遇到其它字符停止
+    支持两种格式：
+    1. 中文格式："Steam ID："（中文冒号，后面没有任何空格）
+    2. 英文格式："Steam ID: "（英文冒号+空格）
     """
-    # 查找"Steam ID："（中文冒号，后面没有任何空格）后跟的数字，遇到其它字符停止
+    # 查找中文格式："Steam ID："（中文冒号，后面没有任何空格）后跟的数字
     match = re.search(r'Steam ID：(\d+)', html_content)
+    if match:
+        return match.group(1)
+    # 查找英文格式："Steam ID: "（英文冒号+空格）后跟的数字
+    match = re.search(r'Steam ID:\s+(\d+)', html_content)
     if match:
         return match.group(1)
     return None
