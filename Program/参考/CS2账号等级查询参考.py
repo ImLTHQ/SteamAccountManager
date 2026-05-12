@@ -22,14 +22,10 @@ RETRY_COUNT = 1  # 超时重试次数
 def extract_steam_id(html_content):
     """
     从HTML内容中提取Steam ID
-    查找"Steam ID："后跟的数字，直到遇到"<"字符停止
+    查找"Steam ID："（中文冒号，后面没有任何空格）后面的数字，遇到其它字符停止
     """
-    # 查找"Steam ID："后的内容直到遇到"<"
-    match = re.search(r'Steam ID：\s*(\d+)', html_content)
-    if match:
-        return match.group(1)
-    # Alternative pattern that stops at "<" character
-    match = re.search(r'Steam ID：\s*([0-9]+)[^<]*<', html_content)
+    # 查找"Steam ID："（中文冒号，后面没有任何空格）后跟的数字，遇到其它字符停止
+    match = re.search(r'Steam ID：(\d+)', html_content)
     if match:
         return match.group(1)
     return None
@@ -83,20 +79,6 @@ async def get_cs2_level(username, password):
             
             # 提取Steam ID
             steam_id = extract_steam_id(account_page)
-            if not steam_id:
-                # 如果无法直接从账户页面获取，尝试通过其他方式获取
-                # 可能需要访问个人资料页面获取Steam ID
-                profile_response = await get_with_retry("https://steamcommunity.com/my/")
-                # 从URL中提取Steam ID (通常在URL中有Steam ID)
-                profile_match = re.search(r'/profiles/(\d+)', profile_response)
-                if profile_match:
-                    steam_id = profile_match.group(1)
-                else:
-                    # 尝试从页面内容中查找Steam ID using regex
-                    id_match = re.search(r'"steamid"\s*:\s*"(\d+)"', profile_response)
-                    if id_match:
-                        steam_id = id_match.group(1)
-            
             if not steam_id:
                 return f"[{username}] 无法获取Steam ID"
 
