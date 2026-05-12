@@ -5,6 +5,12 @@ import re
 import datetime
 import pytz
 
+accounts = [
+    ("rpifk19283", "chdw43041O"),# 带冷却
+    ("vnhba91594", "VF1911148"),# VAC
+    ("dpkzi45933", "gybf85950A")# 新号
+]
+
 BATCH_SIZE = 5  # 每批并发数
 BATCH_DELAY = 3  # 批次间等待秒数
 RETRY_COUNT = 1  # 超时重试次数
@@ -101,13 +107,6 @@ async def check(username, password):
                 await asyncio.sleep(BATCH_DELAY)
             else:
                 return f"[{username}] 重试{RETRY_COUNT}次仍失败(请尝试VPN/TUN代理/路由模式游戏加速器)"
-
-accounts = [
-    #("rpifk19283", "chdw43041O"),# 带冷却
-    #("vnhba91594", "VF1911148"),# VAC
-    #("dpkzi45933", "gybf85950A")# 新号
-]
-
 
 async def main():
     batch_size = 5

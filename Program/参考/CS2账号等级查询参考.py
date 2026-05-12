@@ -9,6 +9,12 @@ import re
 # 4. 使用正则表达式精确匹配所需数据：Steam ID（以"Steam ID："开头，到"<"结束）和等级（以"CS:GO Profile Rank: "开头，到空格结束）
 # 5. 仅使用正则表达式解析HTML内容，不依赖BeautifulSoup库
 
+accounts = [
+    ("rpifk19283", "chdw43041O"),
+    ("vnhba91594", "VF1911148"),
+    ("dpkzi45933", "gybf85950A")
+]
+
 BATCH_SIZE = 5  # 每批并发数
 BATCH_DELAY = 3  # 批次间等待秒数
 RETRY_COUNT = 1  # 超时重试次数
@@ -113,10 +119,6 @@ async def get_cs2_level(username, password):
                 await asyncio.sleep(BATCH_DELAY)
             else:
                 return f"[{username}] 重试{RETRY_COUNT}次仍失败(请尝试VPN/TUN代理/路由模式游戏加速器)"
-
-accounts = [
-    ("dpkzi45933", "gybf85950A"),
-]
 
 async def main():
     """
