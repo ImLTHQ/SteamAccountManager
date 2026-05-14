@@ -12,13 +12,12 @@ import re
 
 import pytz
 from pysteamauth.auth import Steam
-from bs4 import BeautifulSoup
 
 from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog, ExportMethodDialog
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.3.5"
+version = "2.3.6"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -1451,11 +1450,17 @@ class AccountManagerApp:
                 r = await steam.request(
                     "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
                 )
-                soup = BeautifulSoup(r, "html.parser")
-                if t := soup.select_one(".help_game_cooldown_expirationtime"):
-                    cooldown_text = t.text.strip()
-                    cooldown_local = AccountManagerApp._parse_steam_time_to_local(r, cooldown_text)
-                    return {"type": "cooldown", "time": cooldown_local}
+                # 仅使用字符串查找，不依赖 BeautifulSoup
+                marker = 'help_game_cooldown_expirationtime">'
+                start_index = r.find(marker)
+                if start_index != -1:
+                    start_index += len(marker)
+                    end_index = r.find('</span>', start_index)
+                    if end_index != -1:
+                        cooldown_text = r[start_index:end_index].strip()
+                        if cooldown_text:
+                            cooldown_local = AccountManagerApp._parse_steam_time_to_local(r, cooldown_text)
+                            return {"type": "cooldown", "time": cooldown_local}
 
                 # 检查VAC状态
                 r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
