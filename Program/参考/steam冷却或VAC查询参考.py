@@ -1,5 +1,4 @@
 from pysteamauth.auth import Steam
-from bs4 import BeautifulSoup
 import asyncio
 import re
 import datetime
@@ -89,11 +88,15 @@ async def check(username, password):
             r = await get_with_retry(
                 "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
             )
-            soup = BeautifulSoup(r, "html.parser")
-            if t := soup.select_one(".help_game_cooldown_expirationtime"):
-                cooldown_text = t.text.strip()
-                cooldown_local = parse_steam_time_to_local(r, cooldown_text)
-                return f"[{username}] 冷却结束时间 {cooldown_local}"
+            marker = 'help_game_cooldown_expirationtime">'
+            start_index = r.find(marker)
+            if start_index != -1:
+                start_index += len(marker)
+                end_index = r.find('</span>', start_index)
+                if end_index != -1:
+                    cooldown_text = r[start_index:end_index].strip()
+                    cooldown_local = parse_steam_time_to_local(r, cooldown_text)
+                    return f"[{username}] 冷却结束时间 {cooldown_local}"
 
             # 检查VAC状态
             r_vac = await get_with_retry("https://help.steampowered.com/zh-cn/wizard/VacBans")
@@ -120,3 +123,8 @@ async def main():
             await asyncio.sleep(BATCH_DELAY)
 
 asyncio.run(main())
+
+# 删除了 from bs4 import BeautifulSoup
+# 将原先使用 BeautifulSoup 查找 .help_game_cooldown_expirationtime 的逻辑，改为：
+# 在 check() 内部直接用字符串查找
+# 根据 help_game_cooldown_expirationtime"> 与 </span> 之间的内容提取冷却时间文本
