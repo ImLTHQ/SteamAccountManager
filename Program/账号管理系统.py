@@ -24,11 +24,10 @@ current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
 
 class AccountManagerApp:
-    # 添加"序号"列作为第一列
     COLUMNS = ("index", "select", "account", "password", "status", "remarks", "shortcut", "available_time", "others")
     COLUMN_WIDTHS = {
-        "index": 25, "select": 50, "account": 100, "password": 100, "status": 70,
-        "remarks": 100, "shortcut": 100, "available_time": 120, "others": 150
+        "index": 10, "select": 5, "account": 50, "password": 50, "status": 10,
+        "remarks": 50, "shortcut": 100, "available_time": 65, "others": 100
     }
     COLUMN_ANCHORS = {
         "index": tk.CENTER, "select": tk.CENTER, "status": tk.CENTER, "remarks": tk.CENTER,
