@@ -25,7 +25,7 @@ lang = LANGUAGES[current_lang]
 class AccountManagerApp:
     COLUMNS = ("index", "select", "account", "password", "status", "remarks", "shortcut", "available_time", "others")
     COLUMN_WIDTHS = {
-        "index": 10, "select": 5, "account": 50, "password": 50, "status": 10,
+        "index": 10, "select": 10, "account": 50, "password": 50, "status": 10,
         "remarks": 50, "shortcut": 100, "available_time": 65, "others": 100
     }
     COLUMN_ANCHORS = {
