@@ -68,9 +68,8 @@ async def get_cs2_level(username, password):
             async def get_with_retry(url):
                 """
                 带重试机制的请求函数
-                URL参数说明：
+                URL说明：
                 - https://store.steampowered.com/account/ : 用户账户页面，包含Steam ID等信息
-                - https://steamcommunity.com/my/ : 用户个人资料页面，备选获取Steam ID途径
                 - https://steamcommunity.com/profiles/{STEAM_ID}/gcpd/730 : CS2配置文件页面，包含等级信息
                 所有HTML内容解析均使用正则表达式完成
                 """
