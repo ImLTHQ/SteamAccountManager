@@ -1,0 +1,95 @@
+name: 打包并发布 Release
+
+# 触发条件：version 文件被改动（也可以在 Actions 页面手动触发）
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'version'
+  workflow_dispatch:
+
+# 创建 Release / 打 tag 需要写权限
+permissions:
+  contents: write
+
+# 同一分支上的发布串行执行，避免两个版本同时建 Release
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Windows 打包并发布
+    # 账号管理系统 用了 winreg / tkinter，只能在 Windows 上打包
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 读取 version 文件
+        id: ver
+        shell: pwsh
+        run: |
+          $version = (Get-Content version -Raw).Trim()
+          if (-not $version) { throw 'version 文件内容为空' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version"   >> $env:GITHUB_OUTPUT
+          Write-Host "本次发布版本: $version"
+
+      # 必须用 3.13：pysteamauth 依赖 pydantic 1.9，
+      # 在 Python 3.14 下 pydantic 解析最终登录结果会失败
+      # （'FinalizeLoginStatus' object has no attribute 'transfer_info'），
+      # 打出来的 exe 会登录不了 Steam。
+      - name: 安装 Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install pysteamauth==1.1.2 pypinyin pytz pyinstaller==6.14.1
+
+      # 程序内的 version 常量要和 version 文件一致，
+      # 否则发布出去的 exe 会对所有用户一直提示"有新版本"。
+      # 不一致时只在打包前对齐（不会提交回仓库），并打一条 warning。
+      - name: 对齐脚本内的 version 常量
+        shell: pwsh
+        run: |
+          $want = '${{ steps.ver.outputs.version }}'
+          $path = 'Program/账号管理系统.py'
+          $text = [System.IO.File]::ReadAllText($path)
+          $match = [regex]::Match($text, '(?m)^version = "(.+?)"')
+          if (-not $match.Success) { throw '没在脚本里找到 version 常量' }
+          $now = $match.Groups[1].Value
+          if ($now -ne $want) {
+            Write-Host "::warning::$path 里的 version 常量是 $now，与 version 文件($want)不一致，已在打包时对齐"
+            $replacement = 'version = "' + $want + '"'
+            $text = [regex]::Replace($text, '(?m)^version = ".+?"', $replacement)
+            [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
+          } else {
+            Write-Host "脚本内 version 常量与 version 文件一致: $now"
+          }
+
+      - name: PyInstaller 打包
+        run: pyinstaller --noconsole --onefile --noconfirm ./Program/账号管理系统.py
+
+      - name: 检查打包产物
+        shell: pwsh
+        run: |
+          $exe = 'dist/账号管理系统.exe'
+          if (-not (Test-Path $exe)) { throw "没有找到打包产物: $exe" }
+          $file = Get-Item $exe
+          Write-Host ("产物: {0}  {1:N2} MB" -f $file.Name, ($file.Length / 1MB))
+
+      - name: 发布到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          files: dist/账号管理系统.exe
+          fail_on_unmatched_files: true
+          generate_release_notes: true
