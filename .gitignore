@@ -2,3 +2,4 @@ build/
 *.spec
 accounts_data.json
 Program/__pycache__
+dist/
