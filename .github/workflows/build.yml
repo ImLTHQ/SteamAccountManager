@@ -49,6 +49,7 @@ jobs:
           python-version: '3.13'
 
       - name: 安装依赖
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install pysteamauth==1.1.2 pypinyin pytz pyinstaller==6.14.1
@@ -74,22 +75,46 @@ jobs:
             Write-Host "脚本内 version 常量与 version 文件一致: $now"
           }
 
+      # 指定 pwsh（PowerShell 7）：脚本路径含中文，
+      # PS 5.1 会按 ANSI 解析命令里的中文路径，容易乱码找不到文件
+      # 产物统一命名 SteamAccountManager.exe（源码文件名保持中文不动）
       - name: PyInstaller 打包
-        run: pyinstaller --noconsole --onefile --noconfirm ./Program/账号管理系统.py
+        shell: pwsh
+        run: pyinstaller --noconsole --onefile --noconfirm --name SteamAccountManager ./Program/账号管理系统.py
 
       - name: 检查打包产物
         shell: pwsh
         run: |
-          $exe = 'dist/账号管理系统.exe'
+          $exe = 'dist/SteamAccountManager.exe'
           if (-not (Test-Path $exe)) { throw "没有找到打包产物: $exe" }
           $file = Get-Item $exe
           Write-Host ("产物: {0}  {1:N2} MB" -f $file.Name, ($file.Length / 1MB))
+
+      # Release 说明 = 版本号 + 最新一次提交的内容
+      - name: 生成 Release 说明
+        shell: pwsh
+        env:
+          # push 事件直接带提交说明，用它最稳（不用经过 git/控制台编码）
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          $version = '${{ steps.ver.outputs.version }}'
+          $message = $env:COMMIT_MESSAGE
+          if (-not $message -or -not $message.Trim()) {
+            # 手动触发时没有 head_commit，退回读仓库最后一次提交
+            [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+            $message = (git log -1 --pretty=%B) -join "`n"
+          }
+          if (-not $message.Trim()) { $message = '(本次提交没有填写说明)' }
+          $notes = "版本：$version`n`n$($message.Trim())`n"
+          [System.IO.File]::WriteAllText('release_notes.md', $notes, (New-Object System.Text.UTF8Encoding($false)))
+          Write-Output '--- Release 说明 ---'
+          Get-Content -Path release_notes.md -Encoding UTF8
 
       - name: 发布到 Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: ${{ steps.ver.outputs.tag }}
-          files: dist/账号管理系统.exe
+          body_path: release_notes.md
+          files: dist/SteamAccountManager.exe
           fail_on_unmatched_files: true
-          generate_release_notes: true
