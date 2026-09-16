@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import datetime
+import html as html_lib
 import json
 import subprocess
 import winreg
@@ -13,11 +14,12 @@ import re
 import pytz
 from pysteamauth.auth import Steam
 
-from dialogs import DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog, ExportMethodDialog
+from dialogs import (DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRemarkDialog,
+                     ExportMethodDialog, ProfileEditDialog)
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.3.6"
+version = "2.3.7"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -180,12 +182,14 @@ class AccountManagerApp:
         # 添加显示隐藏复选框
         ttk.Checkbutton(search_frame, text=lang['show_hidden'], variable=self.show_hidden_var, command=self.filter_treeview).pack(side=tk.LEFT, padx=5)
         
-        # 删除按钮和查询VAC按钮先不显示
+        # 删除按钮、修改资料按钮和查询VAC按钮先不显示
         self.delete_btn = ttk.Button(search_frame, text=lang['delete_selected'], command=self.delete_selected)
+        self.edit_profile_btn = ttk.Button(search_frame, text=lang['edit_profile'], command=self.edit_profile_selected)
         self.vac_btn = ttk.Button(search_frame, text=lang['check_cooldown_selected'], command=self.check_cooldown_selected)
         ttk.Button(search_frame, text=lang['select_all_toggle'], command=self.select_all_toggle).pack(side=tk.RIGHT, padx=5)
-        # 默认不显示删除按钮和VAC按钮
+        # 默认不显示删除按钮、修改资料按钮和VAC按钮
         self.delete_btn.pack_forget()
+        self.edit_profile_btn.pack_forget()
         self.vac_btn.pack_forget()
 
         # 批量备注下拉栏和按钮（默认隐藏）
@@ -983,11 +987,14 @@ class AccountManagerApp:
     def update_batch_remarks_visibility(self):
         selected_accounts = [acc for acc in self.accounts_data if acc.get('selected_state', False)]
         if selected_accounts:
+            # side=RIGHT 时先 pack 的在最右边，这里的顺序对应界面上从左到右：
+            # 批量备注 / 批量移动 / 查询VAC / 修改资料 / 删除选中
             self.batch_remarks_combo.pack(side=tk.RIGHT, padx=5)
             self.batch_remarks_btn.pack(side=tk.RIGHT, padx=5)
             self.batch_move_combo.pack(side=tk.RIGHT, padx=5)
             self.batch_move_btn.pack(side=tk.RIGHT, padx=5)
             self.vac_btn.pack(side=tk.RIGHT, padx=5)
+            self.edit_profile_btn.pack(side=tk.RIGHT, padx=5)
             self.delete_btn.pack(side=tk.RIGHT, padx=5)
         else:
             self.batch_remarks_combo.pack_forget()
@@ -995,6 +1002,7 @@ class AccountManagerApp:
             self.batch_move_combo.pack_forget()
             self.batch_move_btn.pack_forget()
             self.vac_btn.pack_forget()
+            self.edit_profile_btn.pack_forget()
             self.delete_btn.pack_forget()
         # 更新"选择"列的表头，显示选中的数量
         count = len(selected_accounts)
@@ -1438,6 +1446,25 @@ class AccountManagerApp:
         return local_dt.strftime("%Y-%m-%d %H:%M")
 
     @staticmethod
+    async def _close_steam_session(steam):
+        """
+        关闭 pysteamauth 底层的 aiohttp 会话，避免 Unclosed client session 警告
+        关闭后把 _session 置空，否则对象回收时 BaseRequestStrategy.__del__ 会访问
+        已为 None 的 session.connector 而抛出 Exception ignored
+        """
+        if not steam:
+            return
+        try:
+            strategy = getattr(steam, '_requests', None)
+            session = getattr(strategy, '_session', None)
+            if session is not None:
+                await session.close()
+            if strategy is not None:
+                strategy._session = None
+        except Exception:
+            pass
+
+    @staticmethod
     async def _check_single_cooldown(username, password, retry_callback=None):
         """查询单个账号的冷却/VAC状态，支持重试"""
         steam = None
@@ -1478,15 +1505,15 @@ class AccountManagerApp:
                     return {"type": "fail", "error": str(e)}
             finally:
                 # 确保 session 被关闭
-                if steam:
-                    try:
-                        await steam.client_session.close()
-                    except Exception:
-                        pass
+                await AccountManagerApp._close_steam_session(steam)
 
     @staticmethod
     async def _check_cooldown_batch(accounts, batch_size=5, batch_delay=3, progress_callback=None, retry_callback=None):
-        """批量查询冷却/VAC状态"""
+        """批量查询冷却/VAC状态
+
+        批量查询时单个账号失败不影响其它账号，失败账号会记录在结果里，
+        由调用方在最后的查询结果中统一提示
+        """
         results = {}
         total = len(accounts)
         done = 0
@@ -1502,66 +1529,66 @@ class AccountManagerApp:
                     result = {"type": "fail", "error": str(result)}
                 results[username] = result
                 done += 1
+                # 单个账号查询失败时继续查询剩余账号（批量查询不中断）
                 if progress_callback:
                     progress_callback(done, total, username, result)
-                # 如果查询失败，立即中断查询
-                if result.get('type') == 'fail':
-                    return None  # 返回None表示中断
             if i + batch_size < total:
                 await asyncio.sleep(batch_delay)
         return results
 
     def check_cooldown_selected(self):
-        """查询选中账号的冷却状态"""
+        """批量查询选中账号的冷却/VAC状态"""
         selected_accounts = [
             acc for acc in self.accounts_data if acc.get('selected_state', False)
         ]
+        # 没有选中账号时不执行
+        if not selected_accounts:
+            messagebox.showinfo(
+                lang['check_cooldown_selected'],
+                lang['check_cooldown_no_accounts'],
+                parent=self.root
+            )
+            return
+        # 上一次查询还在进行中时不再重复发起，避免请求过密被Steam限流
+        if getattr(self, '_checking_vac', False):
+            return
+        self._checking_vac = True
+
         accounts_to_check = [(acc['account'], acc['password']) for acc in selected_accounts]
+        total = len(accounts_to_check)
 
         # 创建进度窗口
-        progress_win = tk.Toplevel(self.root)
-        progress_win.title(lang['check_cooldown_progress'])
-        progress_win.geometry("380x60")
-        progress_win.resizable(False, False)
-        progress_win.transient(self.root)
-        progress_win.grab_set()
-
-        # 居中到主窗口
-        progress_win.update_idletasks()
-        pw, ph = 380, 60
-        mx = self.root.winfo_x()
-        my = self.root.winfo_y()
-        mw = self.root.winfo_width()
-        mh = self.root.winfo_height()
-        progress_win.geometry(f"{pw}x{ph}+{mx + (mw - pw)//2}+{my + (mh - ph)//2}")
-
-        progress_bar = ttk.Progressbar(progress_win, length=350, mode='determinate', maximum=len(accounts_to_check))
-        progress_bar.pack(pady=15)
+        progress_win, progress_bar, progress_label = self._create_progress_window(
+            lang['check_cooldown_progress'])
+        progress_bar['maximum'] = total
 
         result_queue = queue.Queue()
 
         def run_check():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            try:
+                def on_progress(done, total_count, username, result):
+                    result_queue.put(('progress', done, total_count, username, result))
 
-            def on_progress(done, total, username, result):
-                result_queue.put(('progress', done, total, username, result))
+                def on_retry(username, attempt):
+                    print(f"重试中: {username} 第{attempt}次")
+                    result_queue.put(('retry', username, attempt))
 
-            def on_retry(username, attempt):
-                print(f"重试中: {username} 第{attempt}次")
-                result_queue.put(('retry', username, attempt))
-
-            results = loop.run_until_complete(
-                AccountManagerApp._check_cooldown_batch(
-                    accounts_to_check,
-                    batch_size=AccountManagerApp.BATCH_SIZE,
-                    batch_delay=AccountManagerApp.BATCH_DELAY,
-                    progress_callback=on_progress,
-                    retry_callback=on_retry
+                results = loop.run_until_complete(
+                    AccountManagerApp._check_cooldown_batch(
+                        accounts_to_check,
+                        batch_size=AccountManagerApp.BATCH_SIZE,
+                        batch_delay=AccountManagerApp.BATCH_DELAY,
+                        progress_callback=on_progress,
+                        retry_callback=on_retry
+                    )
                 )
-            )
-            result_queue.put(('done', results))
-            loop.close()
+                result_queue.put(('done', results))
+            except Exception as e:
+                result_queue.put(('error', str(e)))
+            finally:
+                loop.close()
 
         threading.Thread(target=run_check, daemon=True).start()
 
@@ -1570,27 +1597,31 @@ class AccountManagerApp:
                 while True:
                     msg = result_queue.get_nowait()
                     if msg[0] == 'progress':
-                        _, done, _total, username, result = msg
+                        _, done, total_count, _username, result = msg
                         progress_bar['value'] = done
+                        progress_label.config(text=lang['check_cooldown_progress_text'].format(
+                            done=done, total=total_count))
                         if result.get('type') == 'fail':
-                            # 查询失败（重试后仍失败）立即弹窗提示并中断
-                            self._remove_retry_title_suffix(progress_win)
-                            progress_win.destroy()
-                            messagebox.showerror(
-                                lang['check_cooldown_fail'],
-                                lang['check_cooldown_fail_msg'],
-                                parent=self.root
-                            )
-                            return
+                            # 批量查询中单个账号失败不再中断，会在结果中统一提示
+                            print(f"查询失败: {_username} {result.get('error', '')}")
                     elif msg[0] == 'retry':
                         self._append_retry_title_suffix(progress_win)
                     elif msg[0] == 'done':
+                        self._checking_vac = False
                         self._remove_retry_title_suffix(progress_win)
                         progress_win.destroy()
-                        if msg[1] is None:
-                            # 查询被中断（已有失败账号处理）
-                            return
-                        self._apply_cooldown_results(msg[1], selected_accounts)
+                        if msg[1] is not None:
+                            self._apply_cooldown_results(msg[1], selected_accounts)
+                        return
+                    elif msg[0] == 'error':
+                        self._checking_vac = False
+                        self._remove_retry_title_suffix(progress_win)
+                        progress_win.destroy()
+                        messagebox.showerror(
+                            lang['check_cooldown_fail'],
+                            lang['check_cooldown_fail_msg'],
+                            parent=self.root
+                        )
                         return
             except queue.Empty:
                 pass
@@ -1657,6 +1688,7 @@ class AccountManagerApp:
         vac_count = sum(1 for r in results.values() if r['type'] == 'vac')
         cooldown_count = sum(1 for r in results.values() if r['type'] == 'cooldown')
         no_ban_count = sum(1 for r in results.values() if r['type'] == 'no_ban')
+        failed_accounts = [name for name, r in results.items() if r['type'] == 'fail']
         expired_cooldown_count = sum(1 for acc in selected_accounts if acc['status'] == lang['status_available'] and acc['account'] in [k for k, v in results.items() if v['type'] == 'cooldown'])
 
         summary_lines = []
@@ -1668,12 +1700,560 @@ class AccountManagerApp:
                 summary_lines.append(f"{lang['check_cooldown_cooldown']}: {active}")
         if no_ban_count > 0 or expired_cooldown_count > 0:
             summary_lines.append(f"{lang['check_cooldown_no_ban']}: {no_ban_count + expired_cooldown_count}")
+        if failed_accounts:
+            # 批量查询中失败的账号单独列出，方便重试
+            summary_lines.append(lang['check_cooldown_fail_accounts'].format(
+                accounts=", ".join(failed_accounts)))
 
         messagebox.showinfo(
             lang['check_cooldown_result'],
             "\n".join(summary_lines),
             parent=self.root
         )
+
+    def _center_window_on_root(self, window, width, height):
+        """把子窗口居中到主窗口上"""
+        window.update_idletasks()
+        mx = self.root.winfo_x()
+        my = self.root.winfo_y()
+        mw = self.root.winfo_width()
+        mh = self.root.winfo_height()
+        window.geometry(f"{width}x{height}+{mx + (mw - width)//2}+{my + (mh - height)//2}")
+
+    def _create_progress_window(self, title):
+        """
+        创建读条进度窗口（禁止关闭，避免后台任务还在跑时窗口消失）
+        返回 (窗口, 进度条, 提示标签)
+        """
+        progress_win = tk.Toplevel(self.root)
+        progress_win.title(title)
+        progress_win.geometry("380x80")
+        progress_win.resizable(False, False)
+        progress_win.transient(self.root)
+        progress_win.grab_set()
+        progress_win.protocol("WM_DELETE_WINDOW", lambda: None)
+
+        progress_bar = ttk.Progressbar(progress_win, length=350, mode='determinate')
+        progress_bar.pack(pady=(15, 5))
+        progress_label = ttk.Label(progress_win, text=title)
+        progress_label.pack(pady=(0, 10))
+
+        self._center_window_on_root(progress_win, 380, 80)
+        return progress_win, progress_bar, progress_label
+
+    def _allow_progress_window_close(self, progress_win):
+        """读条结束后允许关闭窗口"""
+        try:
+            progress_win.protocol("WM_DELETE_WINDOW", progress_win.destroy)
+        except tk.TclError:
+            pass
+
+    # ========== 修改个人资料（名称/真实姓名/概要） ==========
+
+    # 各项长度上限：按 UTF-8 字节算（中文一个字 3 字节），超长会被 Steam 静默截断
+    PROFILE_LIMITS = {
+        'personaName': 32,
+        'real_name': 64,
+        'summary': 4096,
+    }
+
+    # 个人资料相关地址
+    PROFILE_ACCOUNT_URL = "https://store.steampowered.com/account/"
+    PROFILE_EDIT_INFO_URL = "https://steamcommunity.com/profiles/{steam_id}/edit/info"
+    PROFILE_EDIT_URL = "https://steamcommunity.com/profiles/{steam_id}/edit"
+    PROFILE_URL = "https://steamcommunity.com/profiles/{steam_id}/"
+
+    # 请求过于频繁时 Steam 返回 HTTP 429 错误页，页面是错误页而不是正常资料页
+    RATE_LIMIT_MARKERS = ('Steam Community :: Error', 'too many requests')
+    RATE_LIMIT_DELAY = 10  # 改资料被限流(HTTP 429)后的等待秒数
+
+    @staticmethod
+    def _brief_text(value, limit=40):
+        """输出用：过长的内容截断显示，空值显示为 (空)"""
+        if value is None:
+            return lang['edit_profile_empty']
+        if value == '':
+            return lang['edit_profile_empty']
+        return value if len(value) <= limit else value[:limit] + '…'
+
+    @staticmethod
+    def _is_rate_limited(html_content):
+        """判断返回的内容是不是 Steam 的限流错误页（HTTP 429）"""
+        text = (html_content or '').lower()
+        return any(marker.lower() in text for marker in AccountManagerApp.RATE_LIMIT_MARKERS)
+
+    @staticmethod
+    def _extract_steam_id_from_account_page(html_content):
+        """
+        从账户页面提取Steam ID（64位）
+        支持两种格式：
+        1. 中文格式："Steam ID："（中文冒号，后面没有任何空格）
+        2. 英文格式："Steam ID: "（英文冒号+空格）
+        """
+        match = re.search(r'Steam ID：(\d+)', html_content)
+        if match:
+            return match.group(1)
+        match = re.search(r'Steam ID:\s+(\d+)', html_content)
+        if match:
+            return match.group(1)
+        return None
+
+    @staticmethod
+    def _extract_profile_edit_config(html_content):
+        """
+        从 edit/info 页面提取 data-profile-edit 属性中的资料原值 JSON
+        属性值里的引号是 &quot;，需要先 HTML 反转义再解析
+        """
+        # 优先按 id="profile_edit_config" 定位，避免匹配到其它 data-profile-edit
+        match = re.search(r'id="profile_edit_config"[^>]*?data-profile-edit="(.*?)"', html_content, re.S)
+        if not match:
+            # 属性顺序不固定，退化为直接查找 data-profile-edit
+            match = re.search(r'data-profile-edit="(.*?)"', html_content, re.S)
+        if not match:
+            return None
+        try:
+            return json.loads(html_lib.unescape(match.group(1)))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _extract_public_persona_name(html_content):
+        """从个人资料页提取当前昵称（公开页面效果）"""
+        match = re.search(r'class="actual_persona_name">(.*?)</span>', html_content, re.S)
+        if match:
+            return html_lib.unescape(match.group(1)).strip()
+        # 备用：页面标题 "Steam Community :: 昵称"
+        match = re.search(r'<title>Steam Community :: (.*?)</title>', html_content, re.S)
+        if match:
+            return html_lib.unescape(match.group(1)).strip()
+        return None
+
+    @staticmethod
+    async def _edit_profile_single(username, password, persona_name=None, real_name=None, summary=None,
+                                   force=False, retry_callback=None):
+        """
+        修改（或只读取）单个账号的个人资料
+
+        :param persona_name: 新昵称
+        :param real_name:    新真实姓名
+        :param summary:      新概要
+        三个参数：None=保持原值不动，""=清空该项，其它=改成该内容
+        :param force: 内容和原资料相同时，True=仍然提交（用户明确点了确定）
+        :return: 结果字典，type 取值：
+                 no_id / login_failed / read_failed / rate_limited / no_change /
+                 no_session / failed / success / verify_failed
+        """
+        changes = {
+            'personaName': persona_name,
+            'real_name': real_name,
+            'summary': summary,
+        }
+        changes = {key: value for key, value in changes.items() if value is not None}
+
+        steam = None
+        for attempt in range(AccountManagerApp.RETRY_COUNT + 1):
+            try:
+                steam = Steam(username, password)
+                await steam.login_to_steam()
+
+                # 1. 取 Steam ID（64位）
+                account_page = await steam.request(AccountManagerApp.PROFILE_ACCOUNT_URL)
+                steam_id = AccountManagerApp._extract_steam_id_from_account_page(account_page)
+                if not steam_id:
+                    # 账户页面解析失败时，使用登录过程中拿到的 steamid
+                    try:
+                        steam_id = str(steam.steamid)
+                    except Exception:
+                        steam_id = None
+                if not steam_id:
+                    return {"type": "no_id"}
+
+                # 2. 读取资料原值（提交表单时必须原样回填其它字段）
+                edit_info_html = await steam.request(
+                    AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id))
+                config = AccountManagerApp._extract_profile_edit_config(edit_info_html) or {}
+                current = {
+                    'personaName': config.get('strPersonaName', ''),
+                    'real_name': config.get('strRealName', ''),
+                    'summary': config.get('strSummary', ''),
+                }
+
+                if not config:
+                    # 被限流时 edit/info 返回的是 HTTP 429 错误页（没有 profile_edit_config），
+                    # 这时绝不能提交表单，否则真实姓名/概要/位置/自定义URL 会被空值覆盖
+                    if AccountManagerApp._is_rate_limited(edit_info_html):
+                        if attempt < AccountManagerApp.RETRY_COUNT:
+                            if retry_callback:
+                                retry_callback(username, attempt + 1)
+                            await asyncio.sleep(AccountManagerApp.RATE_LIMIT_DELAY)
+                            continue
+                        return {"type": "rate_limited"}
+                    # 未读到资料原值，宁可不改也不能提交空表单
+                    return {"type": "read_failed"}
+
+                # 内容没有变化就不用提交（用户明确点确定时仍然提交）
+                if not force and all(current[key] == value for key, value in changes.items()):
+                    return {"type": "no_change", "current": current}
+
+                # 超长内容会被 Steam 静默截断，这里提前提示
+                for key, value in changes.items():
+                    size = len(value.encode('utf-8'))
+                    if size > AccountManagerApp.PROFILE_LIMITS[key]:
+                        print(f"[{username}] 提示: {lang['edit_profile_field_labels'][key]} {size} 字节, "
+                              f"超过 {AccountManagerApp.PROFILE_LIMITS[key]} 字节, 可能会被Steam截断")
+
+                # 3. 组装表单：除要改的字段外全部回填原值
+                cookies = await steam.cookies('steamcommunity.com')
+                session_id = cookies.get('sessionid') or cookies.get('sessionID')
+                if not session_id:
+                    return {"type": "no_session"}
+
+                location = config.get('LocationData') or {}
+                form = {
+                    'sessionID': session_id,
+                    'type': 'profileSave',
+                    'personaName': current['personaName'],
+                    'real_name': current['real_name'],
+                    'summary': current['summary'],
+                    # ↓↓↓ 以下字段保持原值，缺失会被 Steam 当成"清空"
+                    'country': location.get('locCountryCode', ''),
+                    'state': location.get('locStateCode', ''),
+                    'city': location.get('locCityCode', ''),
+                    'customURL': config.get('strCustomURL', ''),
+                    'weblink_1_title': '',
+                    'weblink_1_url': '',
+                    'weblink_2_title': '',
+                    'weblink_2_url': '',
+                    'weblink_3_title': '',
+                    'weblink_3_url': '',
+                    'json': 1,
+                }
+                # 只覆盖本次要改的字段，其余仍是原值
+                form.update(changes)
+
+                resp_text = await steam.request(
+                    AccountManagerApp.PROFILE_EDIT_URL.format(steam_id=steam_id),
+                    method='POST',
+                    data=form,
+                    headers={
+                        # 模拟网页表单提交（非必需，但更贴近浏览器行为）
+                        'Referer': AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id),
+                        'Origin': 'https://steamcommunity.com',
+                    },
+                )
+
+                # 4. 解析返回的 JSON
+                try:
+                    result = json.loads(resp_text)
+                except Exception:
+                    if AccountManagerApp._is_rate_limited(resp_text):
+                        # 被限流时提交没有生效，可以等待后重试
+                        if attempt < AccountManagerApp.RETRY_COUNT:
+                            if retry_callback:
+                                retry_callback(username, attempt + 1)
+                            await asyncio.sleep(AccountManagerApp.RATE_LIMIT_DELAY)
+                            continue
+                        return {"type": "rate_limited"}
+                    return {"type": "failed", "error": f"返回内容无法解析 {resp_text[:120]!r}"}
+
+                if result.get('success') != 1:
+                    reason = result.get('errmsg') or result.get('error') or result
+                    return {"type": "failed", "error": str(reason)}
+
+                # 5. 回读 edit/info 验证实际生效的内容
+                verify_html = await steam.request(
+                    AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id))
+                verify_config = AccountManagerApp._extract_profile_edit_config(verify_html) or {}
+                if not verify_config:
+                    # 提交已经成功，但回读被限流/失败，无法确认实际生效内容，只能提示手动确认
+                    reason = lang['edit_profile_rate_limited'] if AccountManagerApp._is_rate_limited(verify_html) else ''
+                    return {"type": "verify_failed", "error": reason, "changes": changes,
+                            "current": current, "submitted": True}
+
+                now = {
+                    'personaName': verify_config.get('strPersonaName', ''),
+                    'real_name': verify_config.get('strRealName', ''),
+                    'summary': verify_config.get('strSummary', ''),
+                }
+
+                truncated, mismatched = [], []
+                for key, want in changes.items():
+                    got = now[key]
+                    if got == want:
+                        continue
+                    # 超长时 Steam 会按字节截断，返回仍是 success，只能靠回读发现
+                    if got and want.startswith(got):
+                        truncated.append(key)
+                    else:
+                        mismatched.append((key, want, got))
+
+                # 改了昵称的话，顺手确认一下公开资料页也生效（该页有缓存，只在控制台提示）
+                if 'personaName' in changes:
+                    profile_html = await steam.request(
+                        AccountManagerApp.PROFILE_URL.format(steam_id=steam_id))
+                    public_name = AccountManagerApp._extract_public_persona_name(profile_html)
+                    if public_name and public_name != now['personaName']:
+                        print(f"[{username}] 提示: 公开资料页显示 {public_name}(可能有缓存)")
+
+                if mismatched:
+                    return {"type": "failed", "changes": changes, "current": current,
+                            "mismatched": mismatched}
+                return {"type": "success", "changes": changes, "current": current, "now": now,
+                        "truncated": truncated}
+
+            except Exception as e:
+                if attempt < AccountManagerApp.RETRY_COUNT:
+                    if retry_callback:
+                        retry_callback(username, attempt + 1)
+                    # 还有重试机会，等待后重试
+                    await asyncio.sleep(AccountManagerApp.BATCH_DELAY)
+                else:
+                    return {"type": "login_failed", "error": str(e)}
+            finally:
+                await AccountManagerApp._close_steam_session(steam)
+
+    @staticmethod
+    async def _edit_profile_batch(accounts, persona_name=None, real_name=None, summary=None,
+                                  force=False, progress_callback=None, retry_callback=None):
+        """
+        依次修改多个账号的个人资料
+
+        多个账号必须串行执行：Steam 对改资料接口限流很严，并发请求会整批被 429。
+        单个账号失败不影响后续账号，结果按账号名收集后由调用方统一汇总。
+
+        :param accounts: [(账号, 密码), ...]
+        :return: {账号: _edit_profile_single 返回的结果字典}
+        """
+        results = {}
+        total = len(accounts)
+        for index, (username, password) in enumerate(accounts):
+            results[username] = await AccountManagerApp._edit_profile_single(
+                username=username,
+                password=password,
+                persona_name=persona_name,
+                real_name=real_name,
+                summary=summary,
+                force=force,
+                retry_callback=retry_callback
+            )
+            if progress_callback:
+                progress_callback(index + 1, total, username, results[username])
+            # 账号之间留出间隔，避免连续提交被Steam限流
+            if index + 1 < total:
+                await asyncio.sleep(AccountManagerApp.BATCH_DELAY)
+        return results
+
+    def edit_profile_selected(self):
+        """修改所有选中账号的个人资料（名称/真实姓名/概要）"""
+        selected_accounts = [
+            acc for acc in self.accounts_data if acc.get('selected_state', False)
+        ]
+        if not selected_accounts:
+            messagebox.showinfo(lang['edit_profile'], lang['check_cooldown_no_accounts'], parent=self.root)
+            return
+        if getattr(self, '_editing_profile', False):
+            # 上一次修改还在读条中，不重复打开
+            return
+
+        total = len(selected_accounts)
+        # 弹窗里预填的是第一个账号的当前资料，标题里写明会应用到多少个账号
+        account_obj = selected_accounts[0]
+        self._editing_profile = True
+        try:
+            dlg = ProfileEditDialog(
+                self.root,
+                lang['edit_profile_title'].format(count=total),
+                limits=AccountManagerApp.PROFILE_LIMITS
+            )
+        finally:
+            self._editing_profile = False
+
+        # 点取消或直接关闭窗口 => result 为 None，不执行任何修改
+        if dlg.result is None:
+            return
+        # 上一次批量修改还在读条时不再重复发起，避免请求过密被Steam限流
+        if getattr(self, '_profile_editing', False):
+            return
+        self._profile_editing = True
+
+        # 三个字段作为一个整体应用到全部选中账号（None 表示不改该项，这里由弹窗保证是具体值）
+        persona_name, real_name, summary = dlg.result
+        accounts_to_edit = [(acc['account'], acc['password']) for acc in selected_accounts]
+
+        # 读条窗口：账号数是确定的，用确定进度条比来回滚动的读条更能说明进度
+        progress_win, progress_bar, progress_label = self._create_progress_window(
+            lang['edit_profile_progress'])
+        progress_bar['maximum'] = total
+        progress_bar['value'] = 0
+        progress_label.config(text=lang['edit_profile_progress_text'].format(done=0, total=total))
+
+        result_queue = queue.Queue()
+
+        def run_edit():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                def on_progress(done, total_count, username, result):
+                    result_queue.put(('progress', done, total_count, username, result))
+
+                def on_retry(username, attempt):
+                    print(f"重试中: {username} 第{attempt}次")
+                    result_queue.put(('retry', username, attempt))
+
+                results = loop.run_until_complete(
+                    AccountManagerApp._edit_profile_batch(
+                        accounts_to_edit,
+                        persona_name=persona_name,
+                        real_name=real_name,
+                        summary=summary,
+                        force=True,
+                        progress_callback=on_progress,
+                        retry_callback=on_retry
+                    )
+                )
+                result_queue.put(('done', results))
+            except Exception as e:
+                result_queue.put(('error', str(e)))
+            finally:
+                loop.close()
+
+        threading.Thread(target=run_edit, daemon=True).start()
+
+        def poll_queue():
+            try:
+                while True:
+                    msg = result_queue.get_nowait()
+                    if msg[0] == 'progress':
+                        _, done, total_count, _username, _result = msg
+                        progress_bar['value'] = done
+                        progress_label.config(text=lang['edit_profile_progress_text'].format(
+                            done=done, total=total_count))
+                    elif msg[0] == 'retry':
+                        self._append_retry_title_suffix(progress_win)
+                    elif msg[0] == 'done':
+                        self._profile_editing = False
+                        self._remove_retry_title_suffix(progress_win)
+                        self._allow_progress_window_close(progress_win)
+                        progress_win.destroy()
+                        self._on_profile_edit_done(accounts_to_edit, msg[1])
+                        return
+                    elif msg[0] == 'error':
+                        self._profile_editing = False
+                        self._remove_retry_title_suffix(progress_win)
+                        self._allow_progress_window_close(progress_win)
+                        progress_win.destroy()
+                        messagebox.showerror(
+                            lang['edit_profile_result'],
+                            lang['edit_profile_batch_error'].format(error=msg[1]),
+                            parent=self.root
+                        )
+                        return
+            except queue.Empty:
+                pass
+            except tk.TclError:
+                # 窗口已被销毁，停止轮询
+                return
+            self.root.after(100, poll_queue)
+
+        poll_queue()
+
+    def _on_profile_edit_done(self, accounts_to_edit, results):
+        """批量修改完成后的提示（成功数量 + 各失败账号的具体原因）"""
+        title = lang['edit_profile_result']
+        total = len(accounts_to_edit)
+
+        success_accounts = [name for name, _pwd in accounts_to_edit
+                            if (results.get(name) or {}).get('type') == 'success']
+        # 内容本来就一样，属于正常情况，不计入失败
+        unchanged_accounts = [name for name, _pwd in accounts_to_edit
+                              if (results.get(name) or {}).get('type') == 'no_change']
+        failed = [(name, results.get(name) or {}) for name, _pwd in accounts_to_edit
+                  if (results.get(name) or {}).get('type') not in ('success', 'no_change')]
+
+        lines = []
+        if success_accounts:
+            lines.append(lang['edit_profile_success'].format(count=len(success_accounts)))
+            # Steam 会按字节静默截断超长内容，回读不一致时补一句提示
+            truncated_fields = []
+            for name in success_accounts:
+                for key in (results[name].get('truncated') or []):
+                    if key not in truncated_fields:
+                        truncated_fields.append(key)
+            if truncated_fields:
+                lines.append(lang['edit_profile_truncated'].format(
+                    fields="、".join(lang['edit_profile_field_labels'][key]
+                                     for key in truncated_fields)).strip())
+
+        if unchanged_accounts:
+            if total == 1:
+                lines.append(lang['edit_profile_no_change'].format(account=unchanged_accounts[0]))
+            else:
+                lines.append(lang['edit_profile_no_change_multi'].format(
+                    accounts=", ".join(unchanged_accounts)))
+
+        if failed:
+            # 单个账号失败时直接给原因（和一次只改一个账号时的提示一致）；
+            # 批量时先给一句总数，再逐条列出失败原因
+            if total > 1:
+                if success_accounts or unchanged_accounts:
+                    lines.append(lang['edit_profile_partial'].format(
+                        success=len(success_accounts), failed=len(failed)))
+                else:
+                    lines.append(lang['edit_profile_all_failed'].format(count=len(failed)))
+                lines.append(lang['edit_profile_failed_accounts'])
+            for name, result in failed:
+                lines.append(AccountManagerApp._describe_profile_edit_failure(name, result))
+
+        # 全部账号都没改动时按普通提示展示，其余情况用警告/错误提示
+        if not lines:
+            lines.append(lang['edit_profile_empty'])
+
+        message = "\n".join(lines)
+        parent = self.root
+        if failed:
+            # 有账号失败：单个账号失败时沿用原来的错误弹窗，批量失败时用警告框列出明细
+            if total == 1:
+                messagebox.showerror(title, message, parent=parent)
+            else:
+                messagebox.showwarning(title, message, parent=parent)
+        else:
+            messagebox.showinfo(title, message, parent=parent)
+
+    @staticmethod
+    def _describe_profile_edit_failure(account, result):
+        """把一个账号的失败结果翻译成一行说明文字"""
+        result_type = result.get('type')
+        if result_type == 'rate_limited':
+            return lang['edit_profile_failed'].format(
+                account=account, details=lang['edit_profile_rate_limited'])
+        if result_type == 'read_failed':
+            return f"[{account}] {lang['edit_profile_read_failed']}"
+        if result_type == 'no_session':
+            return f"[{account}] {lang['edit_profile_no_session']}"
+        if result_type == 'no_id':
+            return lang['edit_profile_failed'].format(
+                account=account, details=lang['edit_profile_no_id'])
+        if result_type == 'login_failed':
+            return lang['edit_profile_failed'].format(
+                account=account,
+                details=lang['edit_profile_login_failed'].format(error=result.get('error', '')))
+        if result_type == 'verify_failed':
+            return lang['edit_profile_failed'].format(
+                account=account,
+                details=lang['edit_profile_verify_failed'].format(
+                    error=result.get('error') or lang['edit_profile_empty']))
+        if result_type == 'failed':
+            if result.get('mismatched'):
+                # 提交成功但回读不一致（例如自定义URL被占用等）
+                details = "; ".join(
+                    f"{lang['edit_profile_field_labels'][key]} -> "
+                    f"{AccountManagerApp._brief_text(got)}"
+                    for key, _want, got in result['mismatched']
+                )
+            else:
+                details = result.get('error') or ''
+            return lang['edit_profile_failed'].format(account=account, details=details)
+        return lang['edit_profile_failed'].format(account=account, details=str(result))
 
     # ========== 原有方法 ==========
 

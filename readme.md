@@ -2,7 +2,7 @@
 
 用于管理CS2无额外验证登录账号, 一键登录, 批量查询VAC状态冷却时间
 
-[程序下载点我](https://github.com/ImLTHQ/SteamAccountManager/releases/latest)
+[程序下载点我](https://github.com/ImLTHQ/SteamAccountManager/releases/download/latest/SteamAccountManager.exe)
 
 ## 即将推出
 
