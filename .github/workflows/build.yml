@@ -36,7 +36,6 @@ jobs:
           $version = (Get-Content version -Raw).Trim()
           if (-not $version) { throw 'version 文件内容为空' }
           "version=$version" >> $env:GITHUB_OUTPUT
-          "tag=v$version"   >> $env:GITHUB_OUTPUT
           Write-Host "本次发布版本: $version"
 
       # 必须用 3.13：pysteamauth 依赖 pydantic 1.9，
@@ -90,7 +89,7 @@ jobs:
           $file = Get-Item $exe
           Write-Host ("产物: {0}  {1:N2} MB" -f $file.Name, ($file.Length / 1MB))
 
-      # Release 说明 = 版本号 + 最新一次提交的内容
+      # Release 说明 = v版本号 + 最新一次提交的内容
       - name: 生成 Release 说明
         shell: pwsh
         env:
@@ -105,16 +104,39 @@ jobs:
             $message = (git log -1 --pretty=%B) -join "`n"
           }
           if (-not $message.Trim()) { $message = '(本次提交没有填写说明)' }
-          $notes = "版本：$version`n`n$($message.Trim())`n"
+          $notes = "v$version`n`n$($message.Trim())`n"
           [System.IO.File]::WriteAllText('release_notes.md', $notes, (New-Object System.Text.UTF8Encoding($false)))
           Write-Output '--- Release 说明 ---'
           Get-Content -Path release_notes.md -Encoding UTF8
 
+      # 只保留一个 Release：先连 tag 一起删掉旧的 latest，再重新创建，
+      # 这样资产、说明、tag 指向的提交每次都是最新的，也不会残留旧名字的资产
+      - name: 清理旧的 latest Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 首次发布时本来就没有 Release 可删，别让 gh 的非零退出码打断这一步
+          $PSNativeCommandUseErrorActionPreference = $false
+          $ErrorActionPreference = 'Continue'
+          if (Get-Command gh -ErrorAction SilentlyContinue) {
+            $result = gh release delete latest --yes --cleanup-tag 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "没有可删除的 latest Release（首次发布）: $result"
+            } else {
+              Write-Host '已删除旧的 latest Release 及其 tag'
+            }
+          } else {
+            Write-Host '环境里没有 gh，跳过清理（下一步会直接更新已有的 latest Release）'
+          }
+
       - name: 发布到 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: ${{ steps.ver.outputs.tag }}
+          # tag 固定叫 latest：整个仓库只留这一个 Release，
+          # 每次都是删掉旧的再新建，readme 的 releases/latest 永远指向最新一次发布
+          tag_name: latest
+          name: latest
           body_path: release_notes.md
           files: dist/SteamAccountManager.exe
           fail_on_unmatched_files: true
