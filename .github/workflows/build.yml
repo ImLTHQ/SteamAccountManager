@@ -129,6 +129,11 @@ jobs:
           } else {
             Write-Host '环境里没有 gh，跳过清理（下一步会直接更新已有的 latest Release）'
           }
+          # 注意：GitHub 会在 pwsh 步骤脚本末尾追加
+          #   if ((Test-Path -LiteralPath variable:\LASTEXITCODE)) { exit $LASTEXITCODE }
+          # 所以"容忍 gh 失败"必须显式 exit 0，
+          # 否则 gh 退出码 1 会一路带出去，这一步照样被判为失败
+          exit 0
 
       - name: 发布到 Release
         uses: softprops/action-gh-release@v2
