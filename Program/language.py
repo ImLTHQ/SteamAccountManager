@@ -117,6 +117,7 @@ LANGUAGES = {
         'check_cooldown_fail': "查询失败",
         'check_cooldown_fail_msg': "请尝试VPN/TUN代理/路由模式游戏加速器",
         'check_cooldown_fail_accounts': "以下账号查询失败: {accounts}",
+        'check_cooldown_aborted': "以下账号重试之后仍然查询失败，本次批量查询已取消（未写入任何冷却状态）:",
         'check_cooldown_progress_text': "正在查询 {done}/{total}",
 
         'edit_profile': "修改资料",
@@ -145,6 +146,7 @@ LANGUAGES = {
         'edit_profile_success': "选中的 {count} 个账号已成功修改资料",
         'edit_profile_no_change': "[{account}] 内容与原资料相同，未提交修改",
         'edit_profile_truncated': "（{fields}被Steam截断，请缩短后重新修改）",
+        'edit_profile_unverified': "以下账号已提交修改，但未能回读确认（修改可能已生效）: {accounts}",
         'edit_profile_failed': "[{account}] 修改失败: {details}",
         'edit_profile_rate_limited': "被Steam限流，请稍后重试",
         'edit_profile_read_failed': "读取账号资料失败，已取消修改",
@@ -273,6 +275,7 @@ LANGUAGES = {
         'check_cooldown_fail': "Query Failed",
         'check_cooldown_fail_msg': "Try VPN/TUN proxy/router-mode game accelerator",
         'check_cooldown_fail_accounts': "Failed accounts: {accounts}",
+        'check_cooldown_aborted': "These accounts still failed after retry, the batch query was cancelled (no cooldown status was written):",
         'check_cooldown_progress_text': "Checking {done}/{total}",
 
         'edit_profile': "Edit Profile",
@@ -301,6 +304,7 @@ LANGUAGES = {
         'edit_profile_success': "{count} selected account(s) updated successfully",
         'edit_profile_no_change': "[{account}] Same as current profile, nothing submitted",
         'edit_profile_truncated': " ({fields} truncated by Steam, please shorten and retry)",
+        'edit_profile_unverified': "Submitted but not confirmed by read-back (the change may already be applied): {accounts}",
         'edit_profile_failed': "[{account}] Failed: {details}",
         'edit_profile_rate_limited': "Rate limited by Steam, please retry later",
         'edit_profile_read_failed': "Failed to read profile, edit cancelled",

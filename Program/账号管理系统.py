@@ -19,7 +19,7 @@ from dialogs import (DaysHoursDialog, DateTimeDialog, AddAccountDialog, CustomRe
 from language import LANGUAGES
 from utils import get_system_language, check_for_update, get_pinyin_initial_abbr
 
-version = "2.3.7"
+version = "2.3.8"
 
 current_lang = get_system_language()
 lang = LANGUAGES[current_lang]
@@ -1395,11 +1395,101 @@ class AccountManagerApp:
                 )
 
 
-    # ========== 冷却/VAC查询 ==========
+    # ========== 批量任务调度（分批并发 + 失败的挪到下一批重试） ==========
 
-    BATCH_SIZE = 5
-    BATCH_DELAY = 3
-    RETRY_COUNT = 1  # 重试次数为1
+    BATCH_SIZE = 5            # 查询VAC/冷却时每批并发数
+    BATCH_DELAY = 3           # 查询时批与批之间的等待秒数
+    PROFILE_BATCH_SIZE = 3    # 改资料时每批并发数（改资料比查询娇气，并发数取小一点）
+    PROFILE_BATCH_DELAY = 10  # 改资料时批与批之间的等待秒数
+    RETRY_COUNT = 1           # 失败的账号挪到下一批重试的次数
+    RATE_LIMIT_DELAY = 30     # 被Steam限流(HTTP 429)后的等待秒数
+
+    # 失败后值得重试（重新登录再整体跑一遍）的结果类型，其余的失败重试也没有意义
+    COOLDOWN_RETRYABLE_RESULTS = ('fail',)
+    COOLDOWN_OK_RESULTS = ('cooldown', 'vac', 'no_ban')
+    PROFILE_RETRYABLE_RESULTS = ('login_failed', 'read_failed', 'no_id', 'no_session', 'rate_limited')
+
+    @staticmethod
+    async def _run_batches(accounts, worker, batch_size, batch_delay,
+                           retry_count=1, rate_limit_delay=30,
+                           retryable_results=(), error_result_type='fail',
+                           progress_callback=None, retry_callback=None):
+        """
+        分批并发执行 worker：成功的账号到此为止，失败的账号收集起来作为下一批重试
+
+        :param accounts:       [(账号, 密码), ...]，第一批要处理的全部账号
+        :param worker:         async (账号, 密码) -> 结果字典，内部只尝试一次
+        :param batch_size:     每批并发数
+        :param batch_delay:    批与批之间的等待秒数
+        :param retry_count:    失败账号额外重试的批次数
+        :param rate_limit_delay: 本批出现限流(HTTP 429)时，下一批之前的等待秒数
+        :param retryable_results: 值得重试的结果类型，其余类型直接算最终结果
+        :param error_result_type: worker 抛出异常时使用的失败类型
+        :param progress_callback: (done, total, 账号, 结果) -> None，账号有最终结果时回调
+        :param retry_callback:  (账号, 第几次重试) -> None，账号被挪进重试批时回调
+        :return: (results, failed)
+                 results: {账号: 结果字典}，成功和重试后仍失败的账号都在里面
+                 failed:  {账号: 结果字典}，重试次数用尽后仍然失败的账号
+        """
+        results = {}
+        pending = list(accounts)
+        total = len(accounts)
+        done = 0
+        failed = {}
+
+        for attempt in range(retry_count + 1):
+            if not pending:
+                break
+            if attempt > 0:
+                # 上一批失败的账号进入重试批，已经成功的账号不再处理
+                for username, _password in pending:
+                    if retry_callback:
+                        retry_callback(username, attempt)
+
+            next_pending = []
+            wave_rate_limited = False
+            for index in range(0, len(pending), batch_size):
+                chunk = pending[index:index + batch_size]
+                chunk_results = await asyncio.gather(
+                    *(worker(username, password) for username, password in chunk),
+                    return_exceptions=True
+                )
+                chunk_rate_limited = False
+                for (username, password), result in zip(chunk, chunk_results):
+                    if not isinstance(result, dict):
+                        result = {"type": error_result_type, "error": str(result)}
+                    if result.get('rate_limited') or result.get('type') == 'rate_limited':
+                        chunk_rate_limited = True
+                    results[username] = result
+                    if result.get('type') in retryable_results:
+                        # 这一批失败的账号留到下一批再试
+                        next_pending.append((username, password))
+                    else:
+                        done += 1
+                        if progress_callback:
+                            progress_callback(done, total, username, result)
+                wave_rate_limited = wave_rate_limited or chunk_rate_limited
+                # 本批被限流就多等一会儿，避免后面的批次接着撞限流
+                if index + batch_size < len(pending):
+                    await asyncio.sleep(rate_limit_delay if chunk_rate_limited else batch_delay)
+
+            if next_pending and attempt < retry_count:
+                # 重试批之前等一会儿，给Steam的限流留出恢复时间
+                await asyncio.sleep(rate_limit_delay if wave_rate_limited else batch_delay)
+                pending = next_pending
+                continue
+
+            # 没有重试机会了，这些账号就是最终失败
+            for username, _password in next_pending:
+                failed[username] = results[username]
+                done += 1
+                if progress_callback:
+                    progress_callback(done, total, username, results[username])
+            break
+
+        return results, failed
+
+    # ========== 冷却/VAC查询 ==========
 
     @staticmethod
     def _parse_steam_time_to_local(html, cooldown_text):
@@ -1465,76 +1555,82 @@ class AccountManagerApp:
             pass
 
     @staticmethod
-    async def _check_single_cooldown(username, password, retry_callback=None):
-        """查询单个账号的冷却/VAC状态，支持重试"""
+    async def _check_single_cooldown(username, password):
+        """查询单个账号的冷却/VAC状态
+
+        只尝试一次：失败时返回 type='fail'，由 _run_batches 把账号挪到下一批重试
+        """
         steam = None
-        for attempt in range(AccountManagerApp.RETRY_COUNT + 1):
-            try:
-                steam = Steam(username, password)
-                await steam.login_to_steam()
+        try:
+            steam = Steam(username, password)
+            await steam.login_to_steam()
 
-                # 检查VAC冷却时间
-                r = await steam.request(
-                    "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
-                )
-                # 仅使用字符串查找，不依赖 BeautifulSoup
-                marker = 'help_game_cooldown_expirationtime">'
-                start_index = r.find(marker)
-                if start_index != -1:
-                    start_index += len(marker)
-                    end_index = r.find('</span>', start_index)
-                    if end_index != -1:
-                        cooldown_text = r[start_index:end_index].strip()
-                        if cooldown_text:
-                            cooldown_local = AccountManagerApp._parse_steam_time_to_local(r, cooldown_text)
-                            return {"type": "cooldown", "time": cooldown_local}
+            # 检查VAC冷却时间
+            r = await steam.request(
+                "https://help.steampowered.com/zh-cn/wizard/HelpWithGameIssue/?appid=730&issueid=131"
+            )
+            # 请求过密时拿到的是限流错误页，不是账号页面，标记出来让下一批多等一会儿
+            if AccountManagerApp._is_rate_limited(r):
+                return {"type": "fail", "rate_limited": True,
+                        "error": lang['edit_profile_rate_limited']}
 
-                # 检查VAC状态
-                r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
-                if "Counter-Strike 2" in r_vac:
-                    return {"type": "vac"}
-                return {"type": "no_ban"}
-            except Exception as e:
-                if attempt < AccountManagerApp.RETRY_COUNT:
-                    if retry_callback:
-                        retry_callback(username, attempt + 1)
-                    # 还有重试机会，等待后重试
-                    await asyncio.sleep(AccountManagerApp.BATCH_DELAY)
-                else:
-                    # 重试次数用尽，返回失败
-                    return {"type": "fail", "error": str(e)}
-            finally:
-                # 确保 session 被关闭
-                await AccountManagerApp._close_steam_session(steam)
+            # 仅使用字符串查找，不依赖 BeautifulSoup
+            marker = 'help_game_cooldown_expirationtime">'
+            start_index = r.find(marker)
+            if start_index != -1:
+                start_index += len(marker)
+                end_index = r.find('</span>', start_index)
+                if end_index != -1:
+                    cooldown_text = r[start_index:end_index].strip()
+                    if cooldown_text:
+                        cooldown_local = AccountManagerApp._parse_steam_time_to_local(r, cooldown_text)
+                        return {"type": "cooldown", "time": cooldown_local}
+
+            # 检查VAC状态
+            r_vac = await steam.request("https://help.steampowered.com/zh-cn/wizard/VacBans")
+            if AccountManagerApp._is_rate_limited(r_vac):
+                return {"type": "fail", "rate_limited": True,
+                        "error": lang['edit_profile_rate_limited']}
+            if "Counter-Strike 2" in r_vac:
+                return {"type": "vac"}
+            return {"type": "no_ban"}
+        except Exception as e:
+            return {"type": "fail", "error": str(e)}
+        finally:
+            # 确保 session 被关闭
+            await AccountManagerApp._close_steam_session(steam)
 
     @staticmethod
-    async def _check_cooldown_batch(accounts, batch_size=5, batch_delay=3, progress_callback=None, retry_callback=None):
+    async def _check_cooldown_batch(accounts, batch_size=5, batch_delay=3,
+                                    progress_callback=None, retry_callback=None):
         """批量查询冷却/VAC状态
 
-        批量查询时单个账号失败不影响其它账号，失败账号会记录在结果里，
-        由调用方在最后的查询结果中统一提示
+        每批并发 batch_size 个账号，失败的账号作为下一批重试，成功的账号不再处理。
+        单个账号失败不影响其它账号。
+
+        :return: (results, failed)
+                 failed 是重试后仍然查询失败的账号（调用方据此决定要不要写入冷却状态）
         """
-        results = {}
-        total = len(accounts)
-        done = 0
-        for i in range(0, total, batch_size):
-            batch = accounts[i:i + batch_size]
-            tasks = [
-                AccountManagerApp._check_single_cooldown(u, p, retry_callback=retry_callback)
-                for u, p in batch
-            ]
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-            for (username, _), result in zip(batch, batch_results):
-                if isinstance(result, BaseException):
-                    result = {"type": "fail", "error": str(result)}
-                results[username] = result
-                done += 1
-                # 单个账号查询失败时继续查询剩余账号（批量查询不中断）
-                if progress_callback:
-                    progress_callback(done, total, username, result)
-            if i + batch_size < total:
-                await asyncio.sleep(batch_delay)
-        return results
+        async def worker(username, password):
+            return await AccountManagerApp._check_single_cooldown(username, password)
+
+        results, failed = await AccountManagerApp._run_batches(
+            accounts,
+            worker,
+            batch_size=batch_size,
+            batch_delay=batch_delay,
+            retry_count=AccountManagerApp.RETRY_COUNT,
+            rate_limit_delay=AccountManagerApp.RATE_LIMIT_DELAY,
+            retryable_results=AccountManagerApp.COOLDOWN_RETRYABLE_RESULTS,
+            error_result_type='fail',
+            progress_callback=progress_callback,
+            retry_callback=retry_callback
+        )
+        # 兜底：结果不是已知的正常态就按失败处理，交给调用方取消整批查询
+        for username, result in results.items():
+            if result.get('type') not in AccountManagerApp.COOLDOWN_OK_RESULTS and username not in failed:
+                failed[username] = result
+        return results, failed
 
     def check_cooldown_selected(self):
         """批量查询选中账号的冷却/VAC状态"""
@@ -1575,7 +1671,7 @@ class AccountManagerApp:
                     print(f"重试中: {username} 第{attempt}次")
                     result_queue.put(('retry', username, attempt))
 
-                results = loop.run_until_complete(
+                results, failed = loop.run_until_complete(
                     AccountManagerApp._check_cooldown_batch(
                         accounts_to_check,
                         batch_size=AccountManagerApp.BATCH_SIZE,
@@ -1584,7 +1680,7 @@ class AccountManagerApp:
                         retry_callback=on_retry
                     )
                 )
-                result_queue.put(('done', results))
+                result_queue.put(('done', results, failed))
             except Exception as e:
                 result_queue.put(('error', str(e)))
             finally:
@@ -1602,7 +1698,7 @@ class AccountManagerApp:
                         progress_label.config(text=lang['check_cooldown_progress_text'].format(
                             done=done, total=total_count))
                         if result.get('type') == 'fail':
-                            # 批量查询中单个账号失败不再中断，会在结果中统一提示
+                            # 走到这里说明重试之后仍然失败，整批查询会被取消
                             print(f"查询失败: {_username} {result.get('error', '')}")
                     elif msg[0] == 'retry':
                         self._append_retry_title_suffix(progress_win)
@@ -1610,8 +1706,12 @@ class AccountManagerApp:
                         self._checking_vac = False
                         self._remove_retry_title_suffix(progress_win)
                         progress_win.destroy()
-                        if msg[1] is not None:
-                            self._apply_cooldown_results(msg[1], selected_accounts)
+                        results, failed = msg[1], msg[2]
+                        if failed:
+                            # 重试之后仍然失败：整批任务取消，不写入任何冷却状态
+                            self._on_cooldown_aborted(failed)
+                        elif results:
+                            self._apply_cooldown_results(results, selected_accounts)
                         return
                     elif msg[0] == 'error':
                         self._checking_vac = False
@@ -1633,7 +1733,11 @@ class AccountManagerApp:
         poll_queue()
 
     def _apply_cooldown_results(self, results, selected_accounts):
-        """将查询结果应用到账号数据中"""
+        """将查询结果应用到账号数据中
+
+        只在整批查询全部成功时才会被调用：有任何账号重试后仍失败，调用方会直接取消整批任务，
+        一个字段都不写
+        """
         for acc in selected_accounts:
             username = acc['account']
             result = results.get(username)
@@ -1650,7 +1754,12 @@ class AccountManagerApp:
                         orig_acc['status'] = lang['status_unavailable']
                         break
             elif result['type'] == 'cooldown':
-                dt = datetime.datetime.strptime(result['time'], "%Y-%m-%d %H:%M")
+                try:
+                    dt = datetime.datetime.strptime(result['time'], "%Y-%m-%d %H:%M")
+                except (KeyError, TypeError, ValueError):
+                    # 时间没能解析成"年-月-日 时:分"（页面结构变化/服务器时间缺失），宁可不写也不写错
+                    print(f"[{username}] 提示: 冷却时间无法解析 {result.get('time')!r}，已跳过该账号")
+                    continue
                 if dt <= datetime.datetime.now():
                     # 冷却到期，设为可用
                     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -1688,7 +1797,6 @@ class AccountManagerApp:
         vac_count = sum(1 for r in results.values() if r['type'] == 'vac')
         cooldown_count = sum(1 for r in results.values() if r['type'] == 'cooldown')
         no_ban_count = sum(1 for r in results.values() if r['type'] == 'no_ban')
-        failed_accounts = [name for name, r in results.items() if r['type'] == 'fail']
         expired_cooldown_count = sum(1 for acc in selected_accounts if acc['status'] == lang['status_available'] and acc['account'] in [k for k, v in results.items() if v['type'] == 'cooldown'])
 
         summary_lines = []
@@ -1700,14 +1808,21 @@ class AccountManagerApp:
                 summary_lines.append(f"{lang['check_cooldown_cooldown']}: {active}")
         if no_ban_count > 0 or expired_cooldown_count > 0:
             summary_lines.append(f"{lang['check_cooldown_no_ban']}: {no_ban_count + expired_cooldown_count}")
-        if failed_accounts:
-            # 批量查询中失败的账号单独列出，方便重试
-            summary_lines.append(lang['check_cooldown_fail_accounts'].format(
-                accounts=", ".join(failed_accounts)))
 
         messagebox.showinfo(
             lang['check_cooldown_result'],
             "\n".join(summary_lines),
+            parent=self.root
+        )
+
+    def _on_cooldown_aborted(self, failed):
+        """有账号重试之后仍然查询失败：整批任务取消，不写入任何冷却状态，只提示失败的账号"""
+        messagebox.showwarning(
+            lang['check_cooldown_result'],
+            "\n".join([
+                lang['check_cooldown_aborted'],
+                lang['check_cooldown_fail_accounts'].format(accounts=", ".join(failed)),
+            ]),
             parent=self.root
         )
 
@@ -1765,7 +1880,6 @@ class AccountManagerApp:
 
     # 请求过于频繁时 Steam 返回 HTTP 429 错误页，页面是错误页而不是正常资料页
     RATE_LIMIT_MARKERS = ('Steam Community :: Error', 'too many requests')
-    RATE_LIMIT_DELAY = 10  # 改资料被限流(HTTP 429)后的等待秒数
 
     @staticmethod
     def _brief_text(value, limit=40):
@@ -1830,7 +1944,7 @@ class AccountManagerApp:
 
     @staticmethod
     async def _edit_profile_single(username, password, persona_name=None, real_name=None, summary=None,
-                                   force=False, retry_callback=None):
+                                   force=False):
         """
         修改（或只读取）单个账号的个人资料
 
@@ -1842,6 +1956,10 @@ class AccountManagerApp:
         :return: 结果字典，type 取值：
                  no_id / login_failed / read_failed / rate_limited / no_change /
                  no_session / failed / success / verify_failed
+
+        只尝试一次：login_failed / read_failed / no_id / no_session / rate_limited 都属于
+        「还没真正提交」的失败，由 _edit_profile_batch 把账号挪到下一批重试；
+        提交成功之后（包括提交成功但回读确认失败）一律不再重试，避免同一个账号被反复改。
         """
         changes = {
             'personaName': persona_name,
@@ -1851,196 +1969,194 @@ class AccountManagerApp:
         changes = {key: value for key, value in changes.items() if value is not None}
 
         steam = None
-        for attempt in range(AccountManagerApp.RETRY_COUNT + 1):
-            try:
-                steam = Steam(username, password)
-                await steam.login_to_steam()
+        submitted = False  # 表单是否已经提交成功（提交成功后的失败不再重试）
+        current = {}
+        try:
+            steam = Steam(username, password)
+            await steam.login_to_steam()
 
-                # 1. 取 Steam ID（64位）
-                account_page = await steam.request(AccountManagerApp.PROFILE_ACCOUNT_URL)
-                steam_id = AccountManagerApp._extract_steam_id_from_account_page(account_page)
-                if not steam_id:
-                    # 账户页面解析失败时，使用登录过程中拿到的 steamid
-                    try:
-                        steam_id = str(steam.steamid)
-                    except Exception:
-                        steam_id = None
-                if not steam_id:
-                    return {"type": "no_id"}
-
-                # 2. 读取资料原值（提交表单时必须原样回填其它字段）
-                edit_info_html = await steam.request(
-                    AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id))
-                config = AccountManagerApp._extract_profile_edit_config(edit_info_html) or {}
-                current = {
-                    'personaName': config.get('strPersonaName', ''),
-                    'real_name': config.get('strRealName', ''),
-                    'summary': config.get('strSummary', ''),
-                }
-
-                if not config:
-                    # 被限流时 edit/info 返回的是 HTTP 429 错误页（没有 profile_edit_config），
-                    # 这时绝不能提交表单，否则真实姓名/概要/位置/自定义URL 会被空值覆盖
-                    if AccountManagerApp._is_rate_limited(edit_info_html):
-                        if attempt < AccountManagerApp.RETRY_COUNT:
-                            if retry_callback:
-                                retry_callback(username, attempt + 1)
-                            await asyncio.sleep(AccountManagerApp.RATE_LIMIT_DELAY)
-                            continue
-                        return {"type": "rate_limited"}
-                    # 未读到资料原值，宁可不改也不能提交空表单
-                    return {"type": "read_failed"}
-
-                # 内容没有变化就不用提交（用户明确点确定时仍然提交）
-                if not force and all(current[key] == value for key, value in changes.items()):
-                    return {"type": "no_change", "current": current}
-
-                # 超长内容会被 Steam 静默截断，这里提前提示
-                for key, value in changes.items():
-                    size = len(value.encode('utf-8'))
-                    if size > AccountManagerApp.PROFILE_LIMITS[key]:
-                        print(f"[{username}] 提示: {lang['edit_profile_field_labels'][key]} {size} 字节, "
-                              f"超过 {AccountManagerApp.PROFILE_LIMITS[key]} 字节, 可能会被Steam截断")
-
-                # 3. 组装表单：除要改的字段外全部回填原值
-                cookies = await steam.cookies('steamcommunity.com')
-                session_id = cookies.get('sessionid') or cookies.get('sessionID')
-                if not session_id:
-                    return {"type": "no_session"}
-
-                location = config.get('LocationData') or {}
-                form = {
-                    'sessionID': session_id,
-                    'type': 'profileSave',
-                    'personaName': current['personaName'],
-                    'real_name': current['real_name'],
-                    'summary': current['summary'],
-                    # ↓↓↓ 以下字段保持原值，缺失会被 Steam 当成"清空"
-                    'country': location.get('locCountryCode', ''),
-                    'state': location.get('locStateCode', ''),
-                    'city': location.get('locCityCode', ''),
-                    'customURL': config.get('strCustomURL', ''),
-                    'weblink_1_title': '',
-                    'weblink_1_url': '',
-                    'weblink_2_title': '',
-                    'weblink_2_url': '',
-                    'weblink_3_title': '',
-                    'weblink_3_url': '',
-                    'json': 1,
-                }
-                # 只覆盖本次要改的字段，其余仍是原值
-                form.update(changes)
-
-                resp_text = await steam.request(
-                    AccountManagerApp.PROFILE_EDIT_URL.format(steam_id=steam_id),
-                    method='POST',
-                    data=form,
-                    headers={
-                        # 模拟网页表单提交（非必需，但更贴近浏览器行为）
-                        'Referer': AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id),
-                        'Origin': 'https://steamcommunity.com',
-                    },
-                )
-
-                # 4. 解析返回的 JSON
+            # 1. 取 Steam ID（64位）
+            account_page = await steam.request(AccountManagerApp.PROFILE_ACCOUNT_URL)
+            steam_id = AccountManagerApp._extract_steam_id_from_account_page(account_page)
+            if not steam_id:
+                # 账户页面解析失败时，使用登录过程中拿到的 steamid
                 try:
-                    result = json.loads(resp_text)
+                    steam_id = str(steam.steamid)
                 except Exception:
-                    if AccountManagerApp._is_rate_limited(resp_text):
-                        # 被限流时提交没有生效，可以等待后重试
-                        if attempt < AccountManagerApp.RETRY_COUNT:
-                            if retry_callback:
-                                retry_callback(username, attempt + 1)
-                            await asyncio.sleep(AccountManagerApp.RATE_LIMIT_DELAY)
-                            continue
-                        return {"type": "rate_limited"}
-                    return {"type": "failed", "error": f"返回内容无法解析 {resp_text[:120]!r}"}
+                    steam_id = None
+            if not steam_id:
+                return {"type": "no_id"}
 
-                if result.get('success') != 1:
-                    reason = result.get('errmsg') or result.get('error') or result
-                    return {"type": "failed", "error": str(reason)}
+            # 2. 读取资料原值（提交表单时必须原样回填其它字段）
+            edit_info_html = await steam.request(
+                AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id))
+            config = AccountManagerApp._extract_profile_edit_config(edit_info_html) or {}
+            current = {
+                'personaName': config.get('strPersonaName', ''),
+                'real_name': config.get('strRealName', ''),
+                'summary': config.get('strSummary', ''),
+            }
 
-                # 5. 回读 edit/info 验证实际生效的内容
-                verify_html = await steam.request(
-                    AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id))
-                verify_config = AccountManagerApp._extract_profile_edit_config(verify_html) or {}
-                if not verify_config:
-                    # 提交已经成功，但回读被限流/失败，无法确认实际生效内容，只能提示手动确认
-                    reason = lang['edit_profile_rate_limited'] if AccountManagerApp._is_rate_limited(verify_html) else ''
-                    return {"type": "verify_failed", "error": reason, "changes": changes,
-                            "current": current, "submitted": True}
+            if not config:
+                # 被限流时 edit/info 返回的是 HTTP 429 错误页（没有 profile_edit_config），
+                # 这时绝不能提交表单，否则真实姓名/概要/位置/自定义URL 会被空值覆盖
+                if AccountManagerApp._is_rate_limited(edit_info_html):
+                    return {"type": "rate_limited", "rate_limited": True}
+                # 未读到资料原值，宁可不改也不能提交空表单
+                return {"type": "read_failed"}
 
-                now = {
-                    'personaName': verify_config.get('strPersonaName', ''),
-                    'real_name': verify_config.get('strRealName', ''),
-                    'summary': verify_config.get('strSummary', ''),
-                }
+            # 内容没有变化就不用提交（用户明确点确定时仍然提交）
+            if not force and all(current[key] == value for key, value in changes.items()):
+                return {"type": "no_change", "current": current}
 
-                truncated, mismatched = [], []
-                for key, want in changes.items():
-                    got = now[key]
-                    if got == want:
-                        continue
-                    # 超长时 Steam 会按字节截断，返回仍是 success，只能靠回读发现
-                    if got and want.startswith(got):
-                        truncated.append(key)
-                    else:
-                        mismatched.append((key, want, got))
+            # 超长内容会被 Steam 静默截断，这里提前提示
+            for key, value in changes.items():
+                size = len(value.encode('utf-8'))
+                if size > AccountManagerApp.PROFILE_LIMITS[key]:
+                    print(f"[{username}] 提示: {lang['edit_profile_field_labels'][key]} {size} 字节, "
+                          f"超过 {AccountManagerApp.PROFILE_LIMITS[key]} 字节, 可能会被Steam截断")
 
-                # 改了昵称的话，顺手确认一下公开资料页也生效（该页有缓存，只在控制台提示）
-                if 'personaName' in changes:
-                    profile_html = await steam.request(
-                        AccountManagerApp.PROFILE_URL.format(steam_id=steam_id))
-                    public_name = AccountManagerApp._extract_public_persona_name(profile_html)
-                    if public_name and public_name != now['personaName']:
-                        print(f"[{username}] 提示: 公开资料页显示 {public_name}(可能有缓存)")
+            # 3. 组装表单：除要改的字段外全部回填原值
+            cookies = await steam.cookies('steamcommunity.com')
+            session_id = cookies.get('sessionid') or cookies.get('sessionID')
+            if not session_id:
+                return {"type": "no_session"}
 
-                if mismatched:
-                    return {"type": "failed", "changes": changes, "current": current,
-                            "mismatched": mismatched}
-                return {"type": "success", "changes": changes, "current": current, "now": now,
-                        "truncated": truncated}
+            location = config.get('LocationData') or {}
+            form = {
+                'sessionID': session_id,
+                'type': 'profileSave',
+                'personaName': current['personaName'],
+                'real_name': current['real_name'],
+                'summary': current['summary'],
+                # ↓↓↓ 以下字段保持原值，缺失会被 Steam 当成"清空"
+                'country': location.get('locCountryCode', ''),
+                'state': location.get('locStateCode', ''),
+                'city': location.get('locCityCode', ''),
+                'customURL': config.get('strCustomURL', ''),
+                'weblink_1_title': '',
+                'weblink_1_url': '',
+                'weblink_2_title': '',
+                'weblink_2_url': '',
+                'weblink_3_title': '',
+                'weblink_3_url': '',
+                'json': 1,
+            }
+            # 只覆盖本次要改的字段，其余仍是原值
+            form.update(changes)
 
-            except Exception as e:
-                if attempt < AccountManagerApp.RETRY_COUNT:
-                    if retry_callback:
-                        retry_callback(username, attempt + 1)
-                    # 还有重试机会，等待后重试
-                    await asyncio.sleep(AccountManagerApp.BATCH_DELAY)
+            resp_text = await steam.request(
+                AccountManagerApp.PROFILE_EDIT_URL.format(steam_id=steam_id),
+                method='POST',
+                data=form,
+                headers={
+                    # 模拟网页表单提交（非必需，但更贴近浏览器行为）
+                    'Referer': AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id),
+                    'Origin': 'https://steamcommunity.com',
+                },
+            )
+
+            # 4. 解析返回的 JSON
+            try:
+                result = json.loads(resp_text)
+            except Exception:
+                if AccountManagerApp._is_rate_limited(resp_text):
+                    # 被限流时提交没有生效，可以让下一批重试
+                    return {"type": "rate_limited", "rate_limited": True}
+                return {"type": "failed", "error": f"返回内容无法解析 {resp_text[:120]!r}"}
+
+            if result.get('success') != 1:
+                reason = result.get('errmsg') or result.get('error') or result
+                return {"type": "failed", "error": str(reason)}
+
+            # 提交已经成功：后面无论回读成不成功都不再重试（改动已经生效了）
+            submitted = True
+
+            # 5. 回读 edit/info 验证实际生效的内容
+            verify_html = await steam.request(
+                AccountManagerApp.PROFILE_EDIT_INFO_URL.format(steam_id=steam_id))
+            verify_config = AccountManagerApp._extract_profile_edit_config(verify_html) or {}
+            if not verify_config:
+                # 提交已经成功，但回读被限流/失败，无法确认实际生效内容，只能提示手动确认
+                reason = lang['edit_profile_rate_limited'] if AccountManagerApp._is_rate_limited(verify_html) else ''
+                return {"type": "verify_failed", "error": reason, "changes": changes,
+                        "current": current, "submitted": True}
+
+            now = {
+                'personaName': verify_config.get('strPersonaName', ''),
+                'real_name': verify_config.get('strRealName', ''),
+                'summary': verify_config.get('strSummary', ''),
+            }
+
+            truncated, mismatched = [], []
+            for key, want in changes.items():
+                got = now[key]
+                if got == want:
+                    continue
+                # 超长时 Steam 会按字节截断，返回仍是 success，只能靠回读发现
+                if got and want.startswith(got):
+                    truncated.append(key)
                 else:
-                    return {"type": "login_failed", "error": str(e)}
-            finally:
-                await AccountManagerApp._close_steam_session(steam)
+                    mismatched.append((key, want, got))
+
+            # 改了昵称的话，顺手确认一下公开资料页也生效（该页有缓存，只在控制台提示）
+            if 'personaName' in changes:
+                profile_html = await steam.request(
+                    AccountManagerApp.PROFILE_URL.format(steam_id=steam_id))
+                public_name = AccountManagerApp._extract_public_persona_name(profile_html)
+                if public_name and public_name != now['personaName']:
+                    print(f"[{username}] 提示: 公开资料页显示 {public_name}(可能有缓存)")
+
+            if mismatched:
+                return {"type": "failed", "changes": changes, "current": current,
+                        "mismatched": mismatched}
+            return {"type": "success", "changes": changes, "current": current, "now": now,
+                    "truncated": truncated}
+
+        except Exception as e:
+            if submitted:
+                # 提交已经成功，只是后面的回读/确认请求出错：改动其实已经生效，不再重试
+                return {"type": "verify_failed", "error": str(e), "changes": changes,
+                        "current": current, "submitted": True}
+            return {"type": "login_failed", "error": str(e)}
+        finally:
+            await AccountManagerApp._close_steam_session(steam)
 
     @staticmethod
     async def _edit_profile_batch(accounts, persona_name=None, real_name=None, summary=None,
                                   force=False, progress_callback=None, retry_callback=None):
         """
-        依次修改多个账号的个人资料
+        分批并发修改多个账号的个人资料
 
-        多个账号必须串行执行：Steam 对改资料接口限流很严，并发请求会整批被 429。
+        每批并发 PROFILE_BATCH_SIZE 个账号，失败（登录/读取/限流）的账号挪到下一批重试，
+        提交成功的账号不再处理；被 Steam 限流(HTTP 429)时等 RATE_LIMIT_DELAY 秒再做下一批。
         单个账号失败不影响后续账号，结果按账号名收集后由调用方统一汇总。
 
         :param accounts: [(账号, 密码), ...]
         :return: {账号: _edit_profile_single 返回的结果字典}
         """
-        results = {}
-        total = len(accounts)
-        for index, (username, password) in enumerate(accounts):
-            results[username] = await AccountManagerApp._edit_profile_single(
+        async def worker(username, password):
+            return await AccountManagerApp._edit_profile_single(
                 username=username,
                 password=password,
                 persona_name=persona_name,
                 real_name=real_name,
                 summary=summary,
-                force=force,
-                retry_callback=retry_callback
+                force=force
             )
-            if progress_callback:
-                progress_callback(index + 1, total, username, results[username])
-            # 账号之间留出间隔，避免连续提交被Steam限流
-            if index + 1 < total:
-                await asyncio.sleep(AccountManagerApp.BATCH_DELAY)
+
+        results, _failed = await AccountManagerApp._run_batches(
+            accounts,
+            worker,
+            batch_size=AccountManagerApp.PROFILE_BATCH_SIZE,
+            batch_delay=AccountManagerApp.PROFILE_BATCH_DELAY,
+            retry_count=AccountManagerApp.RETRY_COUNT,
+            rate_limit_delay=AccountManagerApp.RATE_LIMIT_DELAY,
+            retryable_results=AccountManagerApp.PROFILE_RETRYABLE_RESULTS,
+            error_result_type='login_failed',
+            progress_callback=progress_callback,
+            retry_callback=retry_callback
+        )
         return results
 
     def edit_profile_selected(self):
@@ -2167,12 +2283,17 @@ class AccountManagerApp:
         # 内容本来就一样，属于正常情况，不计入失败
         unchanged_accounts = [name for name, _pwd in accounts_to_edit
                               if (results.get(name) or {}).get('type') == 'no_change']
+        # 已经提交成功、只是回读确认失败：改动其实已经生效，算成功但单独提示一句
+        unverified_accounts = [name for name, _pwd in accounts_to_edit
+                               if (results.get(name) or {}).get('type') == 'verify_failed']
         failed = [(name, results.get(name) or {}) for name, _pwd in accounts_to_edit
-                  if (results.get(name) or {}).get('type') not in ('success', 'no_change')]
+                  if (results.get(name) or {}).get('type')
+                  not in ('success', 'no_change', 'verify_failed')]
 
         lines = []
-        if success_accounts:
-            lines.append(lang['edit_profile_success'].format(count=len(success_accounts)))
+        done_count = len(success_accounts) + len(unchanged_accounts) + len(unverified_accounts)
+        if success_accounts or unverified_accounts:
+            lines.append(lang['edit_profile_success'].format(count=done_count))
             # Steam 会按字节静默截断超长内容，回读不一致时补一句提示
             truncated_fields = []
             for name in success_accounts:
@@ -2183,6 +2304,10 @@ class AccountManagerApp:
                 lines.append(lang['edit_profile_truncated'].format(
                     fields="、".join(lang['edit_profile_field_labels'][key]
                                      for key in truncated_fields)).strip())
+
+        if unverified_accounts:
+            lines.append(lang['edit_profile_unverified'].format(
+                accounts=", ".join(unverified_accounts)))
 
         if unchanged_accounts:
             if total == 1:
@@ -2195,9 +2320,9 @@ class AccountManagerApp:
             # 单个账号失败时直接给原因（和一次只改一个账号时的提示一致）；
             # 批量时先给一句总数，再逐条列出失败原因
             if total > 1:
-                if success_accounts or unchanged_accounts:
+                if done_count:
                     lines.append(lang['edit_profile_partial'].format(
-                        success=len(success_accounts), failed=len(failed)))
+                        success=done_count, failed=len(failed)))
                 else:
                     lines.append(lang['edit_profile_all_failed'].format(count=len(failed)))
                 lines.append(lang['edit_profile_failed_accounts'])
