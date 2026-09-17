@@ -1399,10 +1399,10 @@ class AccountManagerApp:
 
     BATCH_SIZE = 5            # 查询VAC/冷却时每批并发数
     BATCH_DELAY = 3           # 查询时批与批之间的等待秒数
-    PROFILE_BATCH_SIZE = 3    # 改资料时每批并发数（改资料比查询娇气，并发数取小一点）
-    PROFILE_BATCH_DELAY = 10  # 改资料时批与批之间的等待秒数
+    PROFILE_BATCH_SIZE = 5    # 改资料时每批并发数
+    PROFILE_BATCH_DELAY = 3   # 改资料时批与批之间的等待秒数
     RETRY_COUNT = 1           # 失败的账号挪到下一批重试的次数
-    RATE_LIMIT_DELAY = 30     # 被Steam限流(HTTP 429)后的等待秒数
+    RATE_LIMIT_DELAY = 60     # 被Steam限流(HTTP 429)后的等待秒数
 
     # 失败后值得重试（重新登录再整体跑一遍）的结果类型，其余的失败重试也没有意义
     COOLDOWN_RETRYABLE_RESULTS = ('fail',)
@@ -1411,7 +1411,7 @@ class AccountManagerApp:
 
     @staticmethod
     async def _run_batches(accounts, worker, batch_size, batch_delay,
-                           retry_count=1, rate_limit_delay=30,
+                           retry_count, rate_limit_delay,
                            retryable_results=(), error_result_type='fail',
                            progress_callback=None, retry_callback=None):
         """
